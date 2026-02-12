@@ -1,0 +1,39 @@
+# 极简版配置（绝对无语法错误）
+name: Appium Test
+on: [workflow_dispatch]  # 只保留手动触发，减少复杂度
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 拉代码
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. 装Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      # 3. 装依赖
+      - name: Install Deps
+        run: |
+          pip install --upgrade pip
+          pip install appium-python-client==3.2.0 pytest==7.4.0
+
+      # 4. 装Appium
+      - name: Install Appium
+        run: |
+          npm install -g appium@2.0.0
+          appium driver install uiautomator2
+
+      # 5. 启动模拟器+运行用例（去掉所有易报错的env/emulator-options）
+      - name: Run Test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 28
+          script: |
+            appium --relaxed-security &
+            sleep 40
+            pytest tests/ -v
