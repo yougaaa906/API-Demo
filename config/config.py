@@ -1,6 +1,6 @@
 import os
 
-TIMEOUT = 15
+TIMEOUT = 30
 INPUT_TEXT = "Today is a sunny day!"
 APPIUM_REMOTE_URL = os.getenv("APPIUM_URL", "http://127.0.0.1:4723")
 
@@ -17,7 +17,8 @@ DESIRED_CAPS =  {
   "app": os.getenv("APP_PATH", "./apps/ApiDemos-debug.apk")
 }
 
-IMPLICIT_TIMEOUT = 10
+IMPLICIT_TIMEOUT = 20
 HOME_ELEMENT = ("xpath", "//android.widget.TextView[@text='Accessibility']")
 MAX_RETURN_TIMES = 5
+
 
