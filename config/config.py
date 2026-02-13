@@ -2,19 +2,19 @@ import os
 
 TIMEOUT = 15
 INPUT_TEXT = "Today is a sunny day!"
-APPIUM_REMOTE_URL = os.getenv("APPIUM_URL", "http://127.0.0.1:4723/wd/hub")
+APPIUM_REMOTE_URL = os.getenv("APPIUM_URL", "http://127.0.0.1:4723")
 
 DESIRED_CAPS =  {
   "platformName": "Android",
-  "deviceName": os.getenv("DEVICE_NAME", "LDPlayer"),
+  "deviceName": os.getenv("DEVICE_NAME", "Android Emulator"),
   "appPackage": "io.appium.android.apis",
   "appActivity": "io.appium.android.apis.ApiDemos",
   "automationName": "UiAutomator2",
   "noReset": False,
-  "udid": os.getenv("DEVICE_UDID", "emulator-5554"),
+  "udid": os.getenv("DEVICE_UDID", ""),
   "newCommandTimeout": 30,
-  "platformVersion": os.getenv("PLATFORM_VERSION", "9.0"),
-  "app": os.getenv("APP_PATH", "https://github.com/appium/appium/raw/master/sample-code/apps/ApiDemos-debug.apk")
+  "platformVersion": os.getenv("PLATFORM_VERSION", ""),
+  "app": os.getenv("APP_PATH", "./ApiDemos-debug.apk")
 }
 
 IMPLICIT_TIMEOUT = 10
