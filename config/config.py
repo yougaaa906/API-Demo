@@ -14,9 +14,10 @@ DESIRED_CAPS =  {
   "udid": os.getenv("DEVICE_UDID", ""),
   "newCommandTimeout": 30,
   "platformVersion": os.getenv("PLATFORM_VERSION", ""),
-  "app": os.getenv("APP_PATH", "./ApiDemos-debug.apk")
+  "app": os.getenv("APP_PATH", "./apps/ApiDemos-debug.apk")
 }
 
 IMPLICIT_TIMEOUT = 10
 HOME_ELEMENT = ("xpath", "//android.widget.TextView[@text='Accessibility']")
 MAX_RETURN_TIMES = 5
+
