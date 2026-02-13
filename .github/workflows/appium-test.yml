@@ -5,62 +5,50 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      # 1. 拉代码（确保能读到根目录的requirements.txt）
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. 装Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
 
-      # 3. 装依赖（核心修正：读取requirements.txt，不再硬编码）
       - name: Install Deps
         run: |
           python -m pip install --upgrade pip
-          # 优先装requirements.txt里的所有依赖（包括pytest-html）
+          # Install dependencies from requirements.txt first
           pip install -r requirements.txt
-          # 兜底：确保核心依赖装到位
+          # Install core dependencies as fallback
           pip install appium-python-client==3.2.0 pytest==7.4.0 pytest-html==3.1.1
-          # 验证安装结果（日志里能看到pytest-html）
+          # Verify pytest and plugins installation
           pip list | grep pytest
 
-      # 4. 装Appium
       - name: Install Appium
         run: |
           npm install -g appium@2.0.0
           appium driver install uiautomator2
           appium -v
 
-      # 5. 启动模拟器+运行用例（加稳定化配置）
       - name: Run Test
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 28
           emulator-options: "-no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2"
-          startup-timeout: 600
+          # Emulator boot timeout (seconds)
+          emulator-boot-timeout: 600
           script: |
-            # 启动Appium
+            # Start Appium server in background
             appium --relaxed-security &
             sleep 20
             
-            # 循环检查模拟器就绪
-            for i in {1..24}; do
-              if adb shell getprop sys.boot_completed | grep -q "1"; then
-                echo "✅ 模拟器已就绪！"
-                break
-              fi
-              echo "⏳ 等待模拟器就绪...（第$i次检查）"
-              sleep 5
-            done
+            # Check emulator boot status in loop (max 24 times, 5s interval)
+            for i in {1..24}; do if adb shell getprop sys.boot_completed | grep -q "1"; then echo "✅ Emulator is ready!"; break; fi; echo "⏳ Waiting for emulator... (Check $i)"; sleep 5; done
             
             sleep 20
             
-            # 运行用例（支持--html参数，因为装了pytest-html）
+            # Run test cases and generate HTML report
             pytest tests/ -v -s --html=reports/report.html --self-contained-html
 
-      # 6. 上传报告和截图（面试展示用）
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: always()
