@@ -7,7 +7,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        # Check out the repository code to the runner
+        # Check out the repository code to the runner (including apps/APK file)
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -45,10 +45,8 @@ jobs:
           # Timeout for emulator boot (in seconds)
           emulator-boot-timeout: 600
           script: |
-            # Step 1: Download ApiDemos-debug.apk to current directory (resolve file not found error)
-            wget https://github.com/appium/appium/raw/master/sample-code/apps/ApiDemos-debug.apk -O ./ApiDemos-debug.apk
-            # Verify APK download success
-            ls -l ./ApiDemos-debug.apk
+            # Step 1: Verify local APK file exists (from repository apps/ directory)
+            ls -l ./apps/ApiDemos-debug.apk
             
             # Step 2: Start Appium server in background with debug log level
             appium --relaxed-security --log-level=debug &
