@@ -7,81 +7,65 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        # Check out the repository code to the runner (including apps/APK file)
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
-        # Set up Python 3.9 environment for test execution
 
       - name: Install Deps
         run: |
-          # Upgrade pip to the latest version
           python -m pip install --upgrade pip
-          # Install dependencies from requirements.txt (including py package)
           pip install -r requirements.txt
-          # Install py package explicitly to resolve pytest-html dependency issue
           pip install py>=1.11.0
-          # Verify installation of key packages
           pip list | grep -E "pytest|py|appium"
 
       - name: Install Appium
         run: |
-          # Install Appium 2.0.0 globally
           npm install -g appium@2.0.0
-          # Install uiautomator2 driver for Android testing
           appium driver install uiautomator2
-          # Verify Appium version
           appium -v
 
       - name: Run Test
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # Android API level 28 corresponds to Android 9.0 (matches config's platformVersion)
           api-level: 28
-          # Emulator startup options (headless mode with optimized performance)
           emulator-options: "-no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2"
-          # Timeout for emulator boot (in seconds)
           emulator-boot-timeout: 600
           script: |
-            # Step 1: Verify local APK file exists (from repository apps/ directory)
-            ls -l ./apps/ApiDemos-debug.apk
+            ls -l ./apps/ApiDemos-debug.apk || { echo "APK file not found"; exit 1; }
             
-            # Step 2: Start Appium server in background with debug log level
-            appium --relaxed-security --log-level=debug &
-            # Wait 20 seconds for Appium server to fully start
+            appium --relaxed-security --log-level=debug > appium.log 2>&1 &
             sleep 20
             
-            # Step 3: Wait for emulator to complete boot (max 24 checks, 5s interval)
             for i in {1..24}; do 
               if adb shell getprop sys.boot_completed | grep -q "1"; then 
-                echo "✅ Emulator is ready!"
+                echo "Emulator is ready!"
                 break
               fi
-              echo "⏳ Waiting for emulator... (Check $i)"
+              if [ $i -eq 24 ]; then
+                echo "Emulator boot timeout"
+                exit 1
+              fi
+              echo "Waiting for emulator... (Check $i/24)"
               sleep 5
             done
             
-            # Step 4: Additional wait for emulator to load completely
             sleep 30
             
-            # Step 5: Print device info for debugging
             adb devices
             adb shell getprop ro.build.version.release
             
-            # Step 6: Create report directory and run test cases
             mkdir -p reports
             pytest tests/ -v -s --html=reports/report.html --self-contained-html
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
-        # Always run this step even if previous steps fail
         if: always()
         with:
           name: test-results
-          # Upload test reports, logs and screenshots
           path: |
             reports/
             logs/
             screenshots/
+            appium.log
