@@ -5,7 +5,7 @@ TIMEOUT = 30
 INPUT_TEXT = "Today is a sunny day!"
 MAX_RETURN_TIMES = 5
 
-# BrowserStack config (100% official format)
+# BrowserStack config
 BS_USERNAME = "ruiruixiao_HBwtCk"
 BS_ACCESS_KEY = "6DpJ8BujqYbktEBhJSsp"
 APPIUM_REMOTE_URL = f"https://{BS_USERNAME}:{BS_ACCESS_KEY}@hub.browserstack.com/wd/hub"
@@ -17,13 +17,18 @@ LOG_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_logs")
 SCREENSHOTS_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_screenshots")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_reports")
 
-# Android desired capabilities (Appium 2.0 + BrowserStack W3C standard)
+# Android desired capabilities (Appium 2.0 W3C + BrowserStack 100% compatible)
 DESIRED_CAPS = {
+   
     "platformName": "Android",
     "automationName": "UiAutomator2",
     "appium:noReset": False,
     "appium:newCommandTimeout": 30,
     "appium:app": "bs://19db12aefeee97f9eed40b499feb88911af3100e",
+    
+    "appium:deviceName": "Google Pixel 3",
+    "appium:platformVersion": "9.0",
+    
     "alwaysMatch": {
         "bstack:options": {
             "userName": BS_USERNAME,
