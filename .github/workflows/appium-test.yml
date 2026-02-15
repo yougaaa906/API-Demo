@@ -84,12 +84,9 @@ jobs:
             echo "Checking connected Android devices..."
             adb devices
 
-            # Create reports directory (idempotent)
-            mkdir -p reports
-
             # Run pytest with HTML report (verbose mode for debugging)
             echo "Starting Appium test execution..."
-            pytest tests/ -v -s --html=reports/report.html --self-contained-html
+            pytest tests/ -v -s --html=API_Demo_reports/report.html --self-contained-html
             TEST_EXIT_CODE=$?
 
             # Stop Appium server after tests
@@ -106,6 +103,8 @@ jobs:
         with:
           name: appium-test-results-${{ github.run_id }}  # Unique name with run ID
           path: |
-            reports/**
+            API_Demo_reports/**
+            API_Demo_logs/**
+            API_Demo_screenshots/**
             appium.log
           retention-days: 7  # Retain artifacts for 7 days (cleanup)
