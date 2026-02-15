@@ -1,43 +1,56 @@
 from pages.basepage import BasePage
 from pages.page_actions import PageActions
 import logging
-from appium.webdriver.common.appiumby import AppiumBy  # 统一用AppiumBy（移动端最佳实践）
+from appium.webdriver.common.appiumby import AppiumBy  # Use AppiumBy for mobile best practice
 from config.config import INPUT_TEXT
 
 
 class TextFieldsPage(BasePage):
+    """TextFields Page Object: Encapsulates elements and actions for TextFields page"""
     logger = logging.getLogger(__name__)
-    # ✅ 统一用AppiumBy，替换原生By（仅修复定位策略，不新增逻辑）
+    
+    # Page Element Locators (use AppiumBy for mobile automation best practice)
     textfields_btn = (AppiumBy.ACCESSIBILITY_ID, "TextFields")
     textfields_page_title = (AppiumBy.XPATH, "//android.widget.TextView[@text='Views/TextFields']")
     textfields_field = (AppiumBy.ID, "io.appium.android.apis:id/edit")
 
     def textfields_page(self, input_text=INPUT_TEXT):
+        """
+        Perform text input operation on TextFields page
+        Steps:
+        1. Swipe to locate TextFields button
+        2. Click button to navigate to TextFields page
+        3. Wait for page title to confirm page load
+        4. Input text to the target text field
+        5. Retrieve and return the inputted text
+        :param input_text: Text to be inputted (default: global INPUT_TEXT from config)
+        :return: Trimmed text from the input field after input
+        :raise: Exception if any step fails during the operation
+        """
         try:
-            self.logger.info("开始执行TextFields页面输入操作")
+            self.logger.info("Starting text input operation on TextFields page")
             swipe_actions = PageActions(self.driver)
 
-            # 1. 滑动找到目标元素
+            # Step 1: Swipe to find target element
             swipe_actions.swipe_until_element_appear(locator=self.textfields_btn)
-            self.logger.info("往上滑动已找到TextFields按钮")  # ✅ 修复日志调用（补全info）
+            self.logger.info(f"TextFields button ({self.textfields_btn}) found after upward swipe")
 
-            # 2. 点击进入页面
+            # Step 2: Click to enter TextFields page
             self.elem_click(self.textfields_btn)
-            self.logger.info("点击TextFields按钮，等待页面标题显示")
+            self.logger.info("Clicked TextFields button, waiting for page title to display")
 
-            # 3. 等待页面加载完成
+            # Step 3: Wait for page to load completely (verify title visibility)
             self.wait_elem_visibility(self.textfields_page_title)
 
-            # 4. 输入文本（仅执行输入，不做验证）
-            self.logger.info(f"在输入框中输入文本：{input_text}")
+            # Step 4: Input text (only perform input, no validation)
+            self.logger.info(f"Inputting text '{input_text}' to the text field")
             self.elem_input(self.textfields_field, input_text)
 
-            # 5. 获取输入后文本并返回（精简冗余等待）
+            # Step 5: Retrieve inputted text and return (simplify redundant wait)
             textfields_text = self.driver.find_element(*self.textfields_field).text.strip()
-            self.logger.info("输入操作完成，返回输入框文本")
+            self.logger.info("Text input operation completed, returning text from input field")
 
             return textfields_text
         except Exception as e:
-            # ✅ 修复日志级别（改为error），规范格式化
-            self.logger.error(f"输入操作失败，失败原因：{str(e)}")
+            self.logger.error(f"Text input operation failed, error: {str(e)}")
             raise e
