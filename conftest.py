@@ -5,7 +5,8 @@ import logging
 from datetime import datetime
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
-from config.config import APPIUM_REMOTE_URL, DESIRED_CAPS, IMPLICIT_TIMEOUT
+# ========== 改动1：把IMPLICIT_TIMEOUT替换为TIMEOUT，同时导入config中的路径常量 ==========
+from config.config import APPIUM_REMOTE_URL, DESIRED_CAPS, TIMEOUT, LOG_DIR, SCREENSHOTS_DIR, REPORTS_DIR
 from selenium.common.exceptions import WebDriverException
 
 # ====================== Project Configuration ======================
@@ -16,13 +17,15 @@ if PROJECT_ROOT not in sys.path:
 
 # ====================== Directory & Log Constants ======================
 # Define directory paths for logs and screenshots (centralized for easy maintenance)
-LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
-SCREENSHOTS_DIR = os.path.join(PROJECT_ROOT, "screenshots")
+# ========== 改动2：删除原有的路径硬编码，直接使用config导入的带项目名路径 ==========
+# LOG_DIR = os.path.join(PROJECT_ROOT, "logs")  # 废弃
+# SCREENSHOTS_DIR = os.path.join(PROJECT_ROOT, "screenshots")  # 废弃
 LOG_FILE_NAME = f"test_{datetime.now():%Y%m%d_%H%M%S}.log"
 
 # Create directories if they don't exist (idempotent operation)
 os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+os.makedirs(REPORTS_DIR, exist_ok=True)  # 新增：创建报告目录（匹配config）
 
 # ====================== Logging Configuration ======================
 # Configure logging with file (UTF-8 encoding) and stream handlers
@@ -69,7 +72,8 @@ def driver():
         appium_driver = webdriver.Remote(APPIUM_REMOTE_URL, options=options)
         
         # Set global implicit wait for element lookup (config-driven)
-        appium_driver.implicitly_wait(IMPLICIT_TIMEOUT)
+        # ========== 改动3：把IMPLICIT_TIMEOUT替换为TIMEOUT ==========
+        appium_driver.implicitly_wait(TIMEOUT)
         
         logger.info("Driver initialized successfully, app in clean state")
         yield appium_driver
