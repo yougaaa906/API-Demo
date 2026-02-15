@@ -48,56 +48,103 @@ jobs:
           # Install Android SDK & tools (key step to replace third-party Action)
           echo -e "\n=== Installing Android SDK ==="
           sudo apt-get install -y android-sdk openjdk-11-jdk
-          # Set Android environment variables
-          echo "ANDROID_HOME=/usr/lib/android-sdk" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=/usr/lib/android-sdk" >> $GITHUB_ENV
-          echo "PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator" >> $GITHUB_ENV
+          # Critical fix: Export variables for CURRENT step (immediate effect)
+          export ANDROID_HOME="/usr/lib/android-sdk"
+          export ANDROID_SDK_ROOT="/usr/lib/android-sdk"
+          export PATH="$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
+          # Export variables for SUBSEQUENT steps
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "PATH=$PATH" >> $GITHUB_ENV
 
-          # Accept Android SDK licenses (auto-confirm, no interactive prompt)
+          # Fix: Robust license acceptance (avoid broken pipe)
           echo -e "\n=== Accepting Android SDK licenses ==="
-          yes | sdkmanager --licenses > /dev/null 2>&1
+          echo "y" | sdkmanager --licenses > /dev/null 2>&1 || echo "Licenses already accepted or minor error ignored"
 
-          # Install Android 28 system image (for emulator)
+          # Fix: Specify sdkmanager full path if needed, install required packages
           echo -e "\n=== Installing Android 28 system image ==="
-          sdkmanager "platforms;android-28" "system-images;android-28;google_apis;x86" "emulator" "platform-tools"
+          sdkmanager --update > /dev/null 2>&1
+          sdkmanager "platforms;android-28" "system-images;android-28;google_apis;x86" "emulator" "platform-tools" "tools"
 
       # Step 4: Create & Start Android Emulator
       - name: Create and Launch Android Emulator
         run: |
           set -e
-          # Create AVD (Android Virtual Device)
+          # Re-export variables to ensure availability (defensive programming)
+          export ANDROID_HOME="/usr/lib/android-sdk"
+          export PATH="$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
+          
+          # Fix: Check avdmanager availability first
+          echo "=== Verifying avdmanager ==="
+          if ! command -v avdmanager &> /dev/null; then
+            echo "avdmanager not found, adding to PATH again: $PATH"
+            exit 1
+          fi
+
+          # Create AVD (Android Virtual Device) with force to overwrite existing
           echo "=== Creating Android Emulator ==="
-          avdmanager create avd -n test-emulator -k "system-images;android-28;google_apis;x86" --device "pixel" --force
+          avdmanager create avd -n test-emulator -k "system-images;android-28;google_apis;x86" --device "pixel" --force --no-window
+
+          # Fix: Check emulator availability
+          echo "=== Verifying emulator ==="
+          if ! command -v emulator &> /dev/null; then
+            echo "emulator not found, PATH: $PATH"
+            exit 1
+          fi
 
           # Start emulator in background (headless mode for CI)
           echo -e "\n=== Starting Android Emulator ==="
           emulator -avd test-emulator -no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2 -memory 2048 &
+          EMULATOR_PID=$!
+          echo "Emulator started with PID: $EMULATOR_PID"
 
-          # Wait for emulator to boot (critical step: ensure emulator is ready)
+          # Fix: More robust emulator boot check (wait for fully ready)
           echo -e "\n=== Waiting for Emulator Boot ==="
           adb wait-for-device
-          # Wait for fully boot (not just device connected)
+          BOOT_COMPLETED=0
           for i in {1..30}; do
-            if adb shell getprop sys.boot_completed | grep -q "1"; then
+            if adb shell getprop sys.boot_completed 2>/dev/null | grep -q "1"; then
+              BOOT_COMPLETED=1
               echo "Emulator fully booted after $i attempts"
               break
             fi
             echo "Waiting for emulator boot ($i/30)..."
             sleep 10
           done
+
+          # Fail if emulator not booted
+          if [ $BOOT_COMPLETED -eq 0 ]; then
+            echo "ERROR: Emulator failed to boot after 300 seconds"
+            adb logcat -d  # Print emulator logs for debugging
+            exit 1
+          fi
+
+          # Final checks
           adb devices
           adb shell settings put global animator_duration_scale 0  # Disable animation for faster tests
+          echo "=== Emulator is ready ==="
 
       # Step 5: Start Appium & Run Tests
       - name: Run Appium Tests
         run: |
           set -e
+          # Re-export variables (defensive)
+          export ANDROID_HOME="/usr/lib/android-sdk"
+          export PATH="$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
+
           # Start Appium server in background
           echo "=== Starting Appium Server ==="
           nohup appium --relaxed-security > appium.log 2>&1 &
           APPIUM_PID=$!
           sleep 5  # Wait for Appium to initialize
           echo "Appium server PID: $APPIUM_PID"
+
+          # Verify Appium is running
+          if ! ps -p $APPIUM_PID > /dev/null; then
+            echo "ERROR: Appium failed to start"
+            cat appium.log
+            exit 1
+          fi
 
           # Create output directories
           echo -e "\n=== Preparing Output Directories ==="
@@ -123,6 +170,13 @@ jobs:
           if ps -p $APPIUM_PID > /dev/null; then
             kill $APPIUM_PID
             echo "Appium stopped successfully"
+          fi
+
+          # Stop emulator (cleanup)
+          echo -e "\n=== Stopping Emulator ==="
+          if ps -p $EMULATOR_PID > /dev/null; then
+            kill $EMULATOR_PID
+            echo "Emulator stopped successfully"
           fi
 
           exit $TEST_EXIT_CODE
