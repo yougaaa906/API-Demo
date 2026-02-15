@@ -1,109 +1,48 @@
-# GitHub Actions workflow for Appium Android UI Automation Tests (BrowserStack Cloud)
-# Industry-standard CI/CD pipeline for remote QA automation (no local emulator dependency)
-name: Appium Android Test (BrowserStack Cloud)
+name: Appium Android Test (BrowserStack)
 
 on:
-  workflow_dispatch: {}  # Allow manual trigger (critical for QA testing)
+  workflow_dispatch: {}
   push:
-    branches: [main]     # Auto-trigger on main branch push
+    branches: [main]
 
 jobs:
-  appium-android-test:
-    name: Run Appium Tests on BrowserStack Cloud
+  appium-test:
     runs-on: ubuntu-latest
-    continue-on-error: false  # Fail fast for CI reliability (industry best practice)
-
     steps:
-      # Step 1: Checkout repository code (base requirement for all CI jobs)
-      - name: Checkout Repository Code
+      - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1  # Minimal clone for faster execution
 
-      # Step 2: Setup Python environment (version locked for consistency)
       - name: Setup Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
-          cache: "pip"  # Cache dependencies to reduce runtime (CI optimization)
+          cache: "pip"
 
-      # Step 3: Install core dependencies (Python + Appium only - no Android SDK needed)
-      - name: Install Project Dependencies
+      - name: Install Dependencies
         run: |
-          set -e  # Exit on any error (fail fast principle)
-          
-          # Upgrade pip and install Python dependencies (requirements first)
-          echo "=== Installing Python dependencies ==="
+          set -e
           python -m pip install --upgrade pip
-          pip install --no-cache-dir -r requirements.txt || echo "No requirements.txt found - installing base packages"
-          pip install py>=1.11.0 pytest pytest-html appium-python-client
-          
-          # Install Appium 2.0 (latest stable) and UIAutomator2 driver (Android standard)
-          echo -e "\n=== Installing Appium and dependencies ==="
+          pip install appium-python-client>=3.0.0 pytest>=7.0.0 pytest-html>=3.2.0 selenium>=4.0.0
           sudo apt-get update && sudo apt-get install -y nodejs npm
           npm install -g appium@2.0.0
           appium driver install uiautomator2
-          
-          # Verify installations (critical for debugging CI failures)
-          echo -e "\n=== Verifying installed versions ==="
-          python --version
-          pip --version
-          appium --version
-          appium driver list --installed
 
-      # Step 4: Run Appium Tests on BrowserStack Cloud (core execution step)
-      - name: Execute Tests on BrowserStack Cloud
-        env:
-          # Inject BrowserStack credentials from GitHub Secrets (security best practice)
-          BS_USERNAME: ${{ secrets.BS_USERNAME }}
-          BS_ACCESS_KEY: ${{ secrets.BS_ACCESS_KEY }}
-          # Pass cloud config via environment variables (decoupled from code)
-          APPIUM_URL: "https://hub.browserstack.com/wd/hub"
+      - name: Run Tests
         run: |
           set -e
-          
-          # Start Appium server in background (lightweight client for cloud communication)
-          echo "=== Starting Appium Client Server ==="
           nohup appium --relaxed-security > appium.log 2>&1 &
-          APPIUM_PID=$!
-          sleep 5  # Short wait for server initialization
-          echo "Appium client server PID: $APPIUM_PID"
-          
-          # Validate Appium server status (fail early if server not running)
-          if ! ps -p $APPIUM_PID > /dev/null; then
-            echo "ERROR: Appium client server failed to start"
-            cat appium.log
-            exit 1
-          fi
-          
-          # Create output directories (ensure persistence for artifacts)
-          echo -e "\n=== Preparing Test Output Directories ==="
+          sleep 5
           mkdir -p API_Demo_reports API_Demo_logs API_Demo_screenshots
-          
-          # Execute test suite with HTML report (QA reporting standard)
-          echo -e "\n=== Running Appium Tests on BrowserStack Cloud ==="
           pytest tests/ -v -s --html=API_Demo_reports/report.html --self-contained-html
-          TEST_EXIT_CODE=$?
-          
-          # Cleanup: Stop Appium server (resource management)
-          echo -e "\n=== Cleaning Up Appium Server ==="
-          if ps -p $APPIUM_PID > /dev/null; then
-            kill $APPIUM_PID
-            echo "Appium client server stopped successfully"
-          fi
-          
-          # Exit with test suite exit code (propagate failure to CI)
-          exit $TEST_EXIT_CODE
 
-      # Step 5: Upload Test Artifacts (run even on failure - debugging critical)
-      - name: Upload Test Results and Artifacts
-        if: always()  # Ensure artifacts are saved regardless of test outcome
+      - name: Upload Results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browserstack-test-results-${{ github.run_id }}  # Unique name for each run
+          name: test-results-${{ github.run_id }}
           path: |
-            ${{ github.workspace }}/API_Demo_reports/**          # Test HTML report
-            ${{ github.workspace }}/API_Demo_logs/**             # Application logs
-            ${{ github.workspace }}/API_Demo_screenshots/**      # Failure screenshots
-            ${{ github.workspace }}/appium.log                   # Appium client logs
-          retention-days: 7  # Retain artifacts for 7 days (balance storage/debugging)
+            API_Demo_reports/**
+            API_Demo_logs/**
+            API_Demo_screenshots/**
+            appium.log
+          retention-days: 7
