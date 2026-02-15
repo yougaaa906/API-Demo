@@ -65,10 +65,9 @@ jobs:
           script: |
             set -e
             # Pre-check: Ensure test APK exists (fail fast if missing)
-            APK_PATH="${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
-            echo "Checking if test APK exists at: $APK_PATH"
-            test -f "$APK_PATH" || { echo "ERROR: Test APK not found at $APK_PATH"; ls -la "${GITHUB_WORKSPACE}/apps/"; exit 1; }
-            echo "APK found successfully: $APK_PATH"
+            echo "Checking if test APK exists at: ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
+            test -f "${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk" || { echo "ERROR: Test APK not found at ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"; ls -la "${GITHUB_WORKSPACE}/apps/"; exit 1; }
+            echo "APK found successfully: ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
 
             # Start Appium server in background (relaxed security for CI)
             echo "Starting Appium server in background..."
