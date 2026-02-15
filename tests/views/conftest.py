@@ -6,18 +6,21 @@ logger = logging.getLogger(__name__)
 
 @pytest.fixture(scope="function")
 def goto_views_page(driver):
-    logger.info(f"====跳转views页面=======")
-    views_page_operations = ViewPage(driver)  # 变量名优化：login_success → login_page（更语义化）
+    """
+    Function-scoped fixture to navigate to Views page before test execution
+    Yields initialized ViewPage object for test use, ensures navigation success
+    :param driver: Appium driver fixture from root conftest.py
+    :yield: Initialized ViewPage object
+    :raise: Exception if navigation to Views page fails
+    """
+    logger.info("===== Navigating to Views page =====")
+    # Initialize ViewPage object with Appium driver
+    view_page = ViewPage(driver)
     try:
-        views_page_operations.view_page()
-        logger.info(f"跳转views页面成功")
-        yield views_page_operations
+        # Execute navigation to Views page
+        view_page.view_page()
+        logger.info("Successfully navigated to Views page")
+        yield view_page
     except Exception as e:
-        logger.error(f"跳转views页面失败，失败原因：{str(e)}")  # 改为error级别
+        logger.error(f"Failed to navigate to Views page, error: {str(e)}")
         raise e
-
-
-
-
-
-
