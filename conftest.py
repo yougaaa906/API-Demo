@@ -5,31 +5,27 @@ import logging
 from datetime import datetime
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
-# ========== 改动1：把IMPLICIT_TIMEOUT替换为TIMEOUT，同时导入config中的路径常量 ==========
 from config.config import APPIUM_REMOTE_URL, DESIRED_CAPS, TIMEOUT, LOG_DIR, SCREENSHOTS_DIR, REPORTS_DIR
 from selenium.common.exceptions import WebDriverException
 
-# ====================== Project Configuration ======================
-# Add project root to system path for module import (resolve relative import issues)
+# ====================== Project Path Configuration ======================
+# Add project root to system path to resolve relative import issues
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# ====================== Directory & Log Constants ======================
-# Define directory paths for logs and screenshots (centralized for easy maintenance)
-# ========== 改动2：删除原有的路径硬编码，直接使用config导入的带项目名路径 ==========
-# LOG_DIR = os.path.join(PROJECT_ROOT, "logs")  # 废弃
-# SCREENSHOTS_DIR = os.path.join(PROJECT_ROOT, "screenshots")  # 废弃
+# ====================== Log File Configuration ======================
+# Generate unique log file name with timestamp for traceability
 LOG_FILE_NAME = f"test_{datetime.now():%Y%m%d_%H%M%S}.log"
 
-# Create directories if they don't exist (idempotent operation)
+# Create required directories (idempotent - safe to run multiple times)
 os.makedirs(LOG_DIR, exist_ok=True)
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
-os.makedirs(REPORTS_DIR, exist_ok=True)  # 新增：创建报告目录（匹配config）
+os.makedirs(REPORTS_DIR, exist_ok=True)
 
 # ====================== Logging Configuration ======================
-# Configure logging with file (UTF-8 encoding) and stream handlers
-# Log format: [timestamp] - [log level] - [message] (standard format for readability)
+# Configure standardized logging (file + console) with UTF-8 encoding
+# Log format: [timestamp] - [log level] - [message] (industry standard)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -44,89 +40,90 @@ logger = logging.getLogger(__name__)
 @pytest.fixture(scope="function")
 def driver():
     """
-    Function-scoped Appium driver fixture for Android automation
+    Function-scoped Appium driver fixture for Android automation (BrowserStack compatible)
     Key features:
-    1. Initializes clean driver (noReset=False) for each test to avoid data contamination
-    2. Sets global implicit wait from config
-    3. Ensures proper driver teardown even on failure
-    4. Raises explicit exception on driver initialization failure
-    :yield: Initialized Appium WebDriver instance
-    :raise: WebDriverException if driver initialization fails
+    1. Isolated test sessions (clean app state per test)
+    2. Config-driven implicit wait and capabilities
+    3. Graceful teardown even on failure
+    4. Explicit error handling for driver initialization
+    Yields:
+        webdriver.Remote: Initialized Appium driver instance
+    Raises:
+        WebDriverException: If driver initialization fails (fails fast)
     """
     appium_driver = None
     try:
-        logger.info("Initializing Appium driver (independent test session)...")
+        logger.info("Initializing Appium driver for BrowserStack cloud device...")
         
-        # Initialize UiAutomator2 options for Android device
+        # Initialize UiAutomator2 options (Android standard)
         options = UiAutomator2Options()
         
-        # Force clean app state (noReset=False) - critical for test isolation
+        # Enforce clean app state (critical for test isolation)
         options.set_capability("noReset", False)
         
-        # Load desired capabilities from config (exclude noReset to prevent override)
+        # Load BrowserStack capabilities from config (avoid hardcoding)
         for cap_key, cap_value in DESIRED_CAPS.items():
-            if cap_key != "noReset":
+            if cap_key != "noReset":  # Prevent override of test isolation setting
                 options.set_capability(cap_key, cap_value)
 
-        # Create driver instance by connecting to Appium server
+        # Connect to BrowserStack cloud Appium server (config-driven URL)
         appium_driver = webdriver.Remote(APPIUM_REMOTE_URL, options=options)
         
-        # Set global implicit wait for element lookup (config-driven)
-        # ========== 改动3：把IMPLICIT_TIMEOUT替换为TIMEOUT ==========
+        # Set global implicit wait (configurable for maintainability)
         appium_driver.implicitly_wait(TIMEOUT)
         
-        logger.info("Driver initialized successfully, app in clean state")
+        logger.info("BrowserStack driver initialized successfully (clean app state)")
         yield appium_driver
 
     except WebDriverException as e:
-        logger.error(f"Driver initialization failed: {str(e)}")
-        raise  # Re-raise to fail test explicitly (avoid silent failures)
+        logger.error(f"BrowserStack driver initialization failed: {str(e)}")
+        raise  # Re-raise to fail test explicitly (no silent failures)
     finally:
-        # Ensure driver is closed gracefully (even if test fails)
+        # Ensure driver cleanup (critical for cloud device resource release)
         if appium_driver:
             try:
                 appium_driver.quit()
-                logger.info("Test case completed, driver closed gracefully")
+                logger.info("Test session completed - BrowserStack driver closed gracefully")
             except WebDriverException as e:
-                logger.error(f"Failed to close driver properly: {str(e)}")
+                logger.error(f"Failed to close BrowserStack driver: {str(e)}")
 
-# ====================== Auto Screenshot Fixture ======================
+# ====================== Auto Screenshot Fixture (Failure Only) ======================
 @pytest.fixture(scope="function", autouse=True)
 def fail_screenshot(driver, request):
     """
-    Auto-triggered fixture to capture screenshots for failed tests
-    Scope: Function-level (runs for every test)
-    Logic: Executes after test, captures screenshot only if test failed in 'call' phase
-    :param driver: Core Appium driver fixture
-    :param request: Pytest request object (access test metadata)
+    Auto-executing fixture to capture screenshots for failed tests (BrowserStack compatible)
+    Triggers only for test execution phase failures (not setup/teardown)
+    Args:
+        driver: Core Appium driver fixture (BrowserStack connected)
+        request: Pytest request object (access test metadata)
     """
-    yield  # Execute test first, then post-test logic
+    yield  # Execute test logic first
     
-    # Check if test failed during execution (not setup/teardown)
+    # Capture screenshot only if test failed during execution
     if hasattr(request.node, '_test_failed') and request.node._test_failed:
         try:
             # Generate unique screenshot filename (test name + timestamp)
             screenshot_filename = f"fail_{request.node.name}_{datetime.now():%Y%m%d%H%M%S}.png"
             screenshot_path = os.path.join(SCREENSHOTS_DIR, screenshot_filename)
             
-            # Save screenshot and log path for debugging
+            # Save screenshot for debugging (BrowserStack device screen capture)
             driver.save_screenshot(screenshot_path)
-            logger.error(f"Screenshot saved for failed test: {screenshot_path}")
+            logger.error(f"Failure screenshot saved: {screenshot_path}")
         except WebDriverException as e:
-            logger.warning(f"Failed to capture screenshot for test {request.node.name}: {str(e)}")
+            logger.warning(f"Failed to capture screenshot for {request.node.name}: {str(e)}")
 
-# ====================== Pytest Hook for Failure Tracking ======================
+# ====================== Pytest Hook - Failure Tracking ======================
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     """
-    Pytest hook to mark test failure status (triggers screenshot capture)
-    Only marks failure if test fails in 'call' phase (execution, not setup/teardown)
-    :param item: Pytest test item object
-    :param call: Pytest call report object
+    Pytest hook to track test failure status (triggers screenshot fixture)
+    Marks failures only for execution phase (core test logic, not setup/teardown)
+    Args:
+        item: Pytest test item (individual test case)
+        call: Pytest call report (test execution result)
     """
-    # Execute the test and get result report
     outcome = yield
     test_report = outcome.get_result()
     
-    # Mark test as failed only for execution phase failures (core test logic)
+    # Flag test as failed only for execution phase errors (industry best practice)
     item._test_failed = (test_report.when == 'call' and test_report.failed)
