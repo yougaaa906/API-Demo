@@ -7,10 +7,9 @@ name: Appium Android UI Test CI/CD
 # Trigger workflow manually (supports on-demand test execution)
 on:
   workflow_dispatch:
-    inputs: {}
+    inputs: {}  
   push:
     branches: [main]  
-    paths: ['.github/workflows/**'] 
 
 # Define test job with Ubuntu latest runner
 jobs:
@@ -34,15 +33,29 @@ jobs:
           python-version: "3.9"
           cache: "pip"  # Cache pip dependencies for faster runs
 
-      # Step 3: Install Python dependencies (one-line execution)
+      # Step 3: Install Python dependencies (multi-line, safe)
       - name: Install Python Dependencies
-        run: set -e; echo "Upgrading pip and installing project dependencies..."; python -m pip install --upgrade pip; pip install --no-cache-dir -r requirements.txt; pip install py>=1.11.0; echo "Python dependencies installed successfully"
+        run: |
+          set -e
+          echo "Upgrading pip and installing project dependencies..."
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
+          pip install py>=1.11.0
+          echo "Python dependencies installed successfully"
 
-      # Step 4: Install Appium and UIAutomator2 driver (one-line execution)
+      # Step 4: Install Appium and UIAutomator2 driver (multi-line, safe)
       - name: Install Appium & UIAutomator2 Driver
-        run: set -e; echo "Installing Node.js and Appium 2.0.0..."; sudo apt-get update && sudo apt-get install -y nodejs npm; npm install -g appium@2.0.0; echo "Installing UIAutomator2 driver..."; appium driver install uiautomator2; appium --version; appium driver list --installed
+        run: |
+          set -e
+          echo "Installing Node.js and Appium 2.0.0..."
+          sudo apt-get update && sudo apt-get install -y nodejs npm
+          npm install -g appium@2.0.0
+          echo "Installing UIAutomator2 driver..."
+          appium driver install uiautomator2
+          appium --version
+          appium driver list --installed
 
-      # Step 5: Start Android Emulator and Run Appium Tests (ALL logic in one line)
+      # Step 5: Start Android Emulator and Run Appium Tests (multi-line, safe)
       - name: Run Tests on Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -50,8 +63,58 @@ jobs:
           # Emulator options: Headless mode (no GUI) for CI environment
           emulator-options: "-no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2 -memory 2048"
           emulator-boot-timeout: 900  # Extend timeout to 15 mins for stable boot
-          # ========== ALL test logic in ONE LINE (no multi-line risk) ==========
-          script: set -e; echo "=== Checking Test APK Existence ==="; echo "Target APK path: ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"; test -f "${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk" || { echo "ERROR: APK NOT FOUND at ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"; ls -la "${GITHUB_WORKSPACE}/apps/"; exit 1; }; echo "✅ APK found successfully"; echo -e "\n=== Starting Appium Server ==="; nohup appium --relaxed-security > "${GITHUB_WORKSPACE}/appium.log" 2>&1 & APPIUM_PID=$!; echo "Appium server started with PID: $APPIUM_PID"; ps -p $APPIUM_PID > /dev/null && echo "✅ Appium process is active" || { echo "ERROR: Appium failed to start"; exit 1; }; echo -e "\n=== Waiting for Emulator/Appium Ready ==="; echo "Sleeping 140s for emulator boot & Appium initialization..."; sleep 140; echo -e "\n=== Connected Android Devices ==="; adb devices; adb wait-for-device; adb shell getprop ro.build.version.release > /dev/null 2>&1 || { echo "ERROR: Emulator not responsive"; exit 1; }; echo "✅ Emulator is ready"; echo -e "\n=== Preparing Output Directories ==="; mkdir -p "${GITHUB_WORKSPACE}/API_Demo_reports"; mkdir -p "${GITHUB_WORKSPACE}/API_Demo_logs"; mkdir -p "${GITHUB_WORKSPACE}/API_Demo_screenshots"; echo "✅ Output directories created: API_Demo_reports/ API_Demo_logs/ API_Demo_screenshots/"; echo -e "\n=== Starting Test Execution ==="; pytest tests/ -v -s --html="${GITHUB_WORKSPACE}/API_Demo_reports/report.html" --self-contained-html; TEST_EXIT_CODE=$?; echo -e "\n=== Test Execution Complete ==="; echo "Pytest exit code: $TEST_EXIT_CODE"; echo -e "\n=== Stopping Appium Server ==="; ps -p $APPIUM_PID > /dev/null && { kill $APPIUM_PID; echo "✅ Appium server stopped (PID: $APPIUM_PID)"; } || echo "ℹ️ Appium server already stopped"; echo -e "\n=== Workflow Complete ==="; exit $TEST_EXIT_CODE
+          # ========== Multi-line script, no YAML syntax risk ==========
+          script: |
+            set -e
+            # Pre-check: APK Existence
+            echo "=== Checking Test APK Existence ==="
+            echo "Target APK path: ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
+            test -f "${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk" || { echo "ERROR: APK NOT FOUND at ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"; ls -la "${GITHUB_WORKSPACE}/apps/"; exit 1; }
+            echo "✅ APK found successfully"
+
+            # Start Appium Server
+            echo -e "\n=== Starting Appium Server ==="
+            nohup appium --relaxed-security > "${GITHUB_WORKSPACE}/appium.log" 2>&1 &
+            APPIUM_PID=$!
+            echo "Appium server started with PID: $APPIUM_PID"
+            ps -p $APPIUM_PID > /dev/null && echo "✅ Appium process is active" || { echo "ERROR: Appium failed to start"; exit 1; }
+
+            # Wait for Emulator/Appium Ready
+            echo -e "\n=== Waiting for Emulator/Appium Ready ==="
+            echo "Sleeping 140s for emulator boot & Appium initialization..."
+            sleep 140
+            echo -e "\n=== Connected Android Devices ==="
+            adb devices
+            adb wait-for-device
+            adb shell getprop ro.build.version.release > /dev/null 2>&1 || { echo "ERROR: Emulator not responsive"; exit 1; }
+            echo "✅ Emulator is ready"
+
+            # Prepare Output Directories
+            echo -e "\n=== Preparing Output Directories ==="
+            mkdir -p "${GITHUB_WORKSPACE}/API_Demo_reports"
+            mkdir -p "${GITHUB_WORKSPACE}/API_Demo_logs"
+            mkdir -p "${GITHUB_WORKSPACE}/API_Demo_screenshots"
+            echo "✅ Output directories created: API_Demo_reports/ API_Demo_logs/ API_Demo_screenshots/"
+
+            # Run Tests
+            echo -e "\n=== Starting Test Execution ==="
+            pytest tests/ -v -s --html="${GITHUB_WORKSPACE}/API_Demo_reports/report.html" --self-contained-html
+            TEST_EXIT_CODE=$?
+            echo -e "\n=== Test Execution Complete ==="
+            echo "Pytest exit code: $TEST_EXIT_CODE"
+
+            # Stop Appium Server
+            echo -e "\n=== Stopping Appium Server ==="
+            if ps -p $APPIUM_PID > /dev/null; then
+              kill $APPIUM_PID
+              echo "✅ Appium server stopped (PID: $APPIUM_PID)"
+            else
+              echo "ℹ️ Appium server already stopped"
+            fi
+
+            # Exit with Test Result
+            echo -e "\n=== Workflow Complete ==="
+            exit $TEST_EXIT_CODE
 
       # Step 6: Upload All Test Artifacts (run even if tests fail)
       - name: Upload Test Results (Reports/Logs/Screenshots)
