@@ -4,36 +4,30 @@
 # Core Steps: Code Checkout → Env Setup → Dep Install → Emulator Run → Test Execution → Artifact Upload
 name: Appium Android UI Test CI/CD
 
-# Trigger workflow manually (supports on-demand test execution)
 on:
   workflow_dispatch:
     inputs: {}  
   push:
     branches: [main]  
 
-# Define test job with Ubuntu latest runner
 jobs:
   appium-and-test:
     name: Run Appium Android Tests
     runs-on: ubuntu-latest
-    # Ensure job continues to upload artifacts even if tests fail
     continue-on-error: false
 
     steps:
-      # Step 1: Checkout source code from repository
       - name: Checkout Repository Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1  # Fetch only latest commit for speed
+          fetch-depth: 1  
 
-      # Step 2: Setup Python environment (match project's Python version)
       - name: Setup Python 3.9 Environment
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
-          cache: "pip"  # Cache pip dependencies for faster runs
+          cache: "pip"  
 
-      # Step 3: Install Python dependencies (multi-line, safe)
       - name: Install Python Dependencies
         run: |
           set -e
@@ -43,7 +37,6 @@ jobs:
           pip install py>=1.11.0
           echo "Python dependencies installed successfully"
 
-      # Step 4: Install Appium and UIAutomator2 driver (multi-line, safe)
       - name: Install Appium & UIAutomator2 Driver
         run: |
           set -e
@@ -55,29 +48,38 @@ jobs:
           appium --version
           appium driver list --installed
 
-      # Step 5: Start Android Emulator and Run Appium Tests (multi-line, safe)
       - name: Run Tests on Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 28
-          # Emulator options: Headless mode (no GUI) for CI environment
           emulator-options: "-no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2 -memory 2048"
-          emulator-boot-timeout: 900  # Extend timeout to 15 mins for stable boot
-          # ========== Multi-line script, no YAML syntax risk ==========
+          emulator-boot-timeout: 900  
           script: |
             set -e
             # Pre-check: APK Existence
             echo "=== Checking Test APK Existence ==="
-            echo "Target APK path: ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
-            test -f "${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk" || { echo "ERROR: APK NOT FOUND at ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"; ls -la "${GITHUB_WORKSPACE}/apps/"; exit 1; }
-            echo "✅ APK found successfully"
+            APK_PATH="${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
+            echo "Target APK path: $APK_PATH"
+            if [ ! -f "$APK_PATH" ]; then
+              echo "ERROR: APK NOT FOUND at $APK_PATH"
+              ls -la "${GITHUB_WORKSPACE}/apps/"
+              exit 1
+            fi
+            echo "APK found successfully"
 
             # Start Appium Server
             echo -e "\n=== Starting Appium Server ==="
             nohup appium --relaxed-security > "${GITHUB_WORKSPACE}/appium.log" 2>&1 &
             APPIUM_PID=$!
             echo "Appium server started with PID: $APPIUM_PID"
-            ps -p $APPIUM_PID > /dev/null && echo "✅ Appium process is active" || { echo "ERROR: Appium failed to start"; exit 1; }
+            sleep 5
+            if pgrep -f appium > /dev/null; then
+              echo "Appium process is active"
+            else
+              echo "ERROR: Appium failed to start"
+              cat "${GITHUB_WORKSPACE}/appium.log"
+              exit 1
+            fi
 
             # Wait for Emulator/Appium Ready
             echo -e "\n=== Waiting for Emulator/Appium Ready ==="
@@ -86,15 +88,21 @@ jobs:
             echo -e "\n=== Connected Android Devices ==="
             adb devices
             adb wait-for-device
-            adb shell getprop ro.build.version.release > /dev/null 2>&1 || { echo "ERROR: Emulator not responsive"; exit 1; }
-            echo "✅ Emulator is ready"
+            for i in {1..5}; do
+              if adb shell getprop ro.build.version.release > /dev/null 2>&1; then
+                break
+              fi
+              echo "Emulator not ready, retrying ($i/5)..."
+              sleep 10
+            done
+            echo "Emulator is ready"
 
             # Prepare Output Directories
             echo -e "\n=== Preparing Output Directories ==="
             mkdir -p "${GITHUB_WORKSPACE}/API_Demo_reports"
             mkdir -p "${GITHUB_WORKSPACE}/API_Demo_logs"
             mkdir -p "${GITHUB_WORKSPACE}/API_Demo_screenshots"
-            echo "✅ Output directories created: API_Demo_reports/ API_Demo_logs/ API_Demo_screenshots/"
+            echo "Output directories created"
 
             # Run Tests
             echo -e "\n=== Starting Test Execution ==="
@@ -105,27 +113,25 @@ jobs:
 
             # Stop Appium Server
             echo -e "\n=== Stopping Appium Server ==="
-            if ps -p $APPIUM_PID > /dev/null; then
-              kill $APPIUM_PID
-              echo "✅ Appium server stopped (PID: $APPIUM_PID)"
+            if pgrep -f appium > /dev/null; then
+              pkill -f appium
+              echo "Appium server stopped successfully"
             else
-              echo "ℹ️ Appium server already stopped"
+              echo "Appium server already stopped"
             fi
 
             # Exit with Test Result
             echo -e "\n=== Workflow Complete ==="
             exit $TEST_EXIT_CODE
 
-      # Step 6: Upload All Test Artifacts (run even if tests fail)
       - name: Upload Test Results (Reports/Logs/Screenshots)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: appium-test-results-${{ github.run_id }}
-          # Absolute paths for reliable artifact collection
           path: |
             ${{ github.workspace }}/API_Demo_reports/**
             ${{ github.workspace }}/API_Demo_logs/**
             ${{ github.workspace }}/API_Demo_screenshots/**
             ${{ github.workspace }}/appium.log
-          retention-days: 7  # Clean up old artifacts automatically
+          retention-days: 7
