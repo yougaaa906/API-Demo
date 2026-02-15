@@ -1,37 +1,39 @@
-# 导入依赖
+# Import dependencies
 from pages.alert_dialogs_page import AlertDialogsPage
 import logging
 import pytest
 
-# 初始化日志器（配置已在conftest.py中统一管理）
+# Initialize logger (configuration managed centrally in conftest.py)
 logger = logging.getLogger(__name__)
 
-
-
 def test_alert_dialogs_close(driver):
-
+    """
+    Test alert dialog closure functionality (no dependency on Views fixture)
+    Core validation: Verify alert dialog is successfully closed after Cancel/OK button clicks
+    :param driver: Appium driver fixture from root conftest.py
+    :raise: AssertionError - if dialog closure verification fails
+    :raise: Exception - if other execution errors occur
+    """
     try:
-        # 1. 用例开始日志
-        logger.info("=====Alert Dialogs弹窗关闭用例开始执行=====")
+        # Step 1: Log test start
+        logger.info("===== Starting Alert Dialogs closure test =====")
 
-        # 2. 初始化Page层对象，调用核心操作方法
+        # Step 2: Initialize Page object and execute core operations
         alert_page = AlertDialogsPage(driver)
-        # 获取Page层返回的弹窗关闭状态（布尔值）
+        # Get dialog closure status (boolean) returned from Page layer
         is_alert_closed = alert_page.alert_dialogs_page()
 
-        # 3. Test层核心断言：验证弹窗是否成功关闭
-        assert is_alert_closed is True, f"弹窗关闭验证失败！预期：True（关闭成功），实际：{is_alert_closed}"
+        # Step 3: Core assertion (Test layer): Verify dialog is closed successfully
+        assert is_alert_closed is True, f"Dialog closure verification failed! Expected: True (closed), Actual: {is_alert_closed}"
 
-        # 4. 用例成功日志
-        logger.info("=====Alert Dialogs弹窗关闭用例执行成功=====")
+        # Step 4: Log test success
+        logger.info("===== Alert Dialogs closure test passed =====")
 
     except AssertionError as ae:
-        # 断言失败单独捕获，便于定位问题
-        logger.error(f"用例断言失败：{str(ae)}")
-        raise ae  # 抛出异常，让pytest标记用例失败
+        # Catch assertion failures separately for precise debugging
+        logger.error(f"Test assertion failed: {str(ae)}")
+        raise ae  # Re-raise to mark test as failed in pytest
     except Exception as e:
-        # 其他异常捕获
-        logger.error(f"用例执行异常，失败原因：{str(e)}", exc_info=True)  # 输出完整堆栈，便于调试
-        raise e  # 抛出异常，不掩盖错误
-
-
+        # Catch other exceptions with full stack trace for debugging
+        logger.error(f"Test execution failed, error: {str(e)}", exc_info=True)
+        raise e  # Re-raise to avoid hiding errors
