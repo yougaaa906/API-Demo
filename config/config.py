@@ -27,7 +27,6 @@ DESIRED_CAPS = {
     "automationName": "UiAutomator2",
     "noReset": False,
     "udid": os.getenv("DEVICE_UDID", ""),
-    # Keep newCommandTimeout with hardcoded 30 (since it's not used in logic)
     "newCommandTimeout": 30,
     "platformVersion": os.getenv("PLATFORM_VERSION", ""),
     "app": os.getenv("APP_PATH", os.path.join(PROJECT_ROOT, "apps/ApiDemos-debug.apk"))
@@ -35,3 +34,4 @@ DESIRED_CAPS = {
 
 # ====================== Element Locator Configuration ======================
 HOME_ELEMENT = ("xpath", "//android.widget.TextView[@text='Accessibility']")
+
