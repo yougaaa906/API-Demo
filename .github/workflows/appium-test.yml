@@ -1,195 +1,109 @@
-# GitHub Actions workflow for Appium Android UI Automation Tests
-# Manual Android Emulator Setup (No third-party Action dependency)
-name: Appium Android Test (Manual Emulator)
+# GitHub Actions workflow for Appium Android UI Automation Tests (BrowserStack Cloud)
+# Industry-standard CI/CD pipeline for remote QA automation (no local emulator dependency)
+name: Appium Android Test (BrowserStack Cloud)
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch: {}  # Allow manual trigger (critical for QA testing)
   push:
-    branches: [main]
+    branches: [main]     # Auto-trigger on main branch push
 
 jobs:
   appium-android-test:
-    name: Run Appium Tests with Manual Emulator
+    name: Run Appium Tests on BrowserStack Cloud
     runs-on: ubuntu-latest
-    continue-on-error: false
+    continue-on-error: false  # Fail fast for CI reliability (industry best practice)
 
     steps:
-      # Step 1: Checkout code
+      # Step 1: Checkout repository code (base requirement for all CI jobs)
       - name: Checkout Repository Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 1  # Minimal clone for faster execution
 
-      # Step 2: Setup Python environment
+      # Step 2: Setup Python environment (version locked for consistency)
       - name: Setup Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
-          cache: "pip"  # Cache pip dependencies for faster runs
+          cache: "pip"  # Cache dependencies to reduce runtime (CI optimization)
 
-      # Step 3: Install core dependencies (Python + Appium + Android SDK)
-      - name: Install All Dependencies
+      # Step 3: Install core dependencies (Python + Appium only - no Android SDK needed)
+      - name: Install Project Dependencies
         run: |
-          set -e
-          # Install Python dependencies
+          set -e  # Exit on any error (fail fast principle)
+          
+          # Upgrade pip and install Python dependencies (requirements first)
           echo "=== Installing Python dependencies ==="
           python -m pip install --upgrade pip
-          pip install --no-cache-dir -r requirements.txt || echo "No requirements.txt found, skip"
-          pip install py>=1.11.0 pytest pytest-html
-
-          # Install Node.js + Appium 2.0 + UIAutomator2 driver
-          echo -e "\n=== Installing Appium ==="
+          pip install --no-cache-dir -r requirements.txt || echo "No requirements.txt found - installing base packages"
+          pip install py>=1.11.0 pytest pytest-html appium-python-client
+          
+          # Install Appium 2.0 (latest stable) and UIAutomator2 driver (Android standard)
+          echo -e "\n=== Installing Appium and dependencies ==="
           sudo apt-get update && sudo apt-get install -y nodejs npm
           npm install -g appium@2.0.0
           appium driver install uiautomator2
+          
+          # Verify installations (critical for debugging CI failures)
+          echo -e "\n=== Verifying installed versions ==="
+          python --version
+          pip --version
           appium --version
           appium driver list --installed
 
-          # Install Android SDK & tools (key step to replace third-party Action)
-          echo -e "\n=== Installing Android SDK ==="
-          sudo apt-get install -y android-sdk openjdk-11-jdk
-          # Critical fix: Export variables for CURRENT step (immediate effect)
-          export ANDROID_HOME="/usr/lib/android-sdk"
-          export ANDROID_SDK_ROOT="/usr/lib/android-sdk"
-          export PATH="$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
-          # Export variables for SUBSEQUENT steps
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "PATH=$PATH" >> $GITHUB_ENV
-
-          # Fix: Robust license acceptance (avoid broken pipe)
-          echo -e "\n=== Accepting Android SDK licenses ==="
-          echo "y" | sdkmanager --licenses > /dev/null 2>&1 || echo "Licenses already accepted or minor error ignored"
-
-          # Fix: Specify sdkmanager full path if needed, install required packages
-          echo -e "\n=== Installing Android 28 system image ==="
-          sdkmanager --update > /dev/null 2>&1
-          sdkmanager "platforms;android-28" "system-images;android-28;google_apis;x86" "emulator" "platform-tools" "tools"
-
-      # Step 4: Create & Start Android Emulator
-      - name: Create and Launch Android Emulator
+      # Step 4: Run Appium Tests on BrowserStack Cloud (core execution step)
+      - name: Execute Tests on BrowserStack Cloud
+        env:
+          # Inject BrowserStack credentials from GitHub Secrets (security best practice)
+          BS_USERNAME: ${{ secrets.BS_USERNAME }}
+          BS_ACCESS_KEY: ${{ secrets.BS_ACCESS_KEY }}
+          # Pass cloud config via environment variables (decoupled from code)
+          APPIUM_URL: "https://hub.browserstack.com/wd/hub"
         run: |
           set -e
-          # Re-export variables to ensure availability (defensive programming)
-          export ANDROID_HOME="/usr/lib/android-sdk"
-          export PATH="$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/tools/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
           
-          # Fix: Check avdmanager availability first
-          echo "=== Verifying avdmanager ==="
-          if ! command -v avdmanager &> /dev/null; then
-            echo "avdmanager not found, adding to PATH again: $PATH"
-            exit 1
-          fi
-
-          # Create AVD (Android Virtual Device) with force to overwrite existing
-          echo "=== Creating Android Emulator ==="
-          avdmanager create avd -n test-emulator -k "system-images;android-28;google_apis;x86" --device "pixel" --force --no-window
-
-          # Fix: Check emulator availability
-          echo "=== Verifying emulator ==="
-          if ! command -v emulator &> /dev/null; then
-            echo "emulator not found, PATH: $PATH"
-            exit 1
-          fi
-
-          # Start emulator in background (headless mode for CI)
-          echo -e "\n=== Starting Android Emulator ==="
-          emulator -avd test-emulator -no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2 -memory 2048 &
-          EMULATOR_PID=$!
-          echo "Emulator started with PID: $EMULATOR_PID"
-
-          # Fix: More robust emulator boot check (wait for fully ready)
-          echo -e "\n=== Waiting for Emulator Boot ==="
-          adb wait-for-device
-          BOOT_COMPLETED=0
-          for i in {1..30}; do
-            if adb shell getprop sys.boot_completed 2>/dev/null | grep -q "1"; then
-              BOOT_COMPLETED=1
-              echo "Emulator fully booted after $i attempts"
-              break
-            fi
-            echo "Waiting for emulator boot ($i/30)..."
-            sleep 10
-          done
-
-          # Fail if emulator not booted
-          if [ $BOOT_COMPLETED -eq 0 ]; then
-            echo "ERROR: Emulator failed to boot after 300 seconds"
-            adb logcat -d  # Print emulator logs for debugging
-            exit 1
-          fi
-
-          # Final checks
-          adb devices
-          adb shell settings put global animator_duration_scale 0  # Disable animation for faster tests
-          echo "=== Emulator is ready ==="
-
-      # Step 5: Start Appium & Run Tests
-      - name: Run Appium Tests
-        run: |
-          set -e
-          # Re-export variables (defensive)
-          export ANDROID_HOME="/usr/lib/android-sdk"
-          export PATH="$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
-
-          # Start Appium server in background
-          echo "=== Starting Appium Server ==="
+          # Start Appium server in background (lightweight client for cloud communication)
+          echo "=== Starting Appium Client Server ==="
           nohup appium --relaxed-security > appium.log 2>&1 &
           APPIUM_PID=$!
-          sleep 5  # Wait for Appium to initialize
-          echo "Appium server PID: $APPIUM_PID"
-
-          # Verify Appium is running
+          sleep 5  # Short wait for server initialization
+          echo "Appium client server PID: $APPIUM_PID"
+          
+          # Validate Appium server status (fail early if server not running)
           if ! ps -p $APPIUM_PID > /dev/null; then
-            echo "ERROR: Appium failed to start"
+            echo "ERROR: Appium client server failed to start"
             cat appium.log
             exit 1
           fi
-
-          # Create output directories
-          echo -e "\n=== Preparing Output Directories ==="
+          
+          # Create output directories (ensure persistence for artifacts)
+          echo -e "\n=== Preparing Test Output Directories ==="
           mkdir -p API_Demo_reports API_Demo_logs API_Demo_screenshots
-
-          # Validate APK existence
-          echo -e "\n=== Checking APK File ==="
-          APK_PATH="$GITHUB_WORKSPACE/apps/ApiDemos-debug.apk"
-          if [ ! -f "$APK_PATH" ]; then
-            echo "ERROR: APK not found at $APK_PATH"
-            ls -la "$GITHUB_WORKSPACE/apps/"
-            exit 1
-          fi
-          echo "APK found successfully"
-
-          # Execute tests
-          echo -e "\n=== Running Tests ==="
+          
+          # Execute test suite with HTML report (QA reporting standard)
+          echo -e "\n=== Running Appium Tests on BrowserStack Cloud ==="
           pytest tests/ -v -s --html=API_Demo_reports/report.html --self-contained-html
           TEST_EXIT_CODE=$?
-
-          # Stop Appium server
-          echo -e "\n=== Stopping Appium ==="
+          
+          # Cleanup: Stop Appium server (resource management)
+          echo -e "\n=== Cleaning Up Appium Server ==="
           if ps -p $APPIUM_PID > /dev/null; then
             kill $APPIUM_PID
-            echo "Appium stopped successfully"
+            echo "Appium client server stopped successfully"
           fi
-
-          # Stop emulator (cleanup)
-          echo -e "\n=== Stopping Emulator ==="
-          if ps -p $EMULATOR_PID > /dev/null; then
-            kill $EMULATOR_PID
-            echo "Emulator stopped successfully"
-          fi
-
+          
+          # Exit with test suite exit code (propagate failure to CI)
           exit $TEST_EXIT_CODE
 
-      # Step 6: Upload test results (run even if tests fail)
-      - name: Upload Test Results
-        if: always()
+      # Step 5: Upload Test Artifacts (run even on failure - debugging critical)
+      - name: Upload Test Results and Artifacts
+        if: always()  # Ensure artifacts are saved regardless of test outcome
         uses: actions/upload-artifact@v4
         with:
-          name: appium-test-results-${{ github.run_id }}
+          name: browserstack-test-results-${{ github.run_id }}  # Unique name for each run
           path: |
-            ${{ github.workspace }}/API_Demo_reports/**
-            ${{ github.workspace }}/API_Demo_logs/**
-            ${{ github.workspace }}/API_Demo_screenshots/**
-            ${{ github.workspace }}/appium.log
-          retention-days: 7
+            ${{ github.workspace }}/API_Demo_reports/**          # Test HTML report
+            ${{ github.workspace }}/API_Demo_logs/**             # Application logs
+            ${{ github.workspace }}/API_Demo_screenshots/**      # Failure screenshots
+            ${{ github.workspace }}/appium.log                   # Appium client logs
+          retention-days: 7  # Retain artifacts for 7 days (balance storage/debugging)
