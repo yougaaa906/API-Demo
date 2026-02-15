@@ -40,14 +40,14 @@ jobs:
           pip install py>=1.11.0
           echo "Python dependencies installed successfully"
 
-      # Step 4: Install Appium and UIAutomator2 driver (Android automation)
+      # Step 4: Install Appium & UIAutomator2 driver (Android automation)
       - name: Install Appium & UIAutomator2 Driver
         run: |
           set -e
           echo "Installing Node.js and Appium 2.0.0..."
           sudo apt-get update && sudo apt-get install -y nodejs npm
           npm install -g appium@2.0.0
-          echo "Installing UIAutomator2 driver for Android..."
+          echo "Installing UIAutomator2 driver..."
           appium driver install uiautomator2
           # Verify Appium installation
           appium --version
@@ -67,11 +67,7 @@ jobs:
             # Pre-check: Ensure test APK exists (fail fast if missing)
             APK_PATH="${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
             echo "Checking if test APK exists at: $APK_PATH"
-            if [ ! -f "$APK_PATH" ]; then
-              echo "ERROR: Test APK not found at $APK_PATH"
-              ls -la "${GITHUB_WORKSPACE}/apps/"  # List dir content for debugging
-              exit 1
-            fi
+            test -f "$APK_PATH" || { echo "ERROR: Test APK not found at $APK_PATH"; ls -la "${GITHUB_WORKSPACE}/apps/"; exit 1; }
             echo "APK found successfully: $APK_PATH"
 
             # Start Appium server in background (relaxed security for CI)
