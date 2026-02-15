@@ -5,7 +5,7 @@ TIMEOUT = 30
 INPUT_TEXT = "Today is a sunny day!"
 MAX_RETURN_TIMES = 5
 
-# BrowserStack config (official validated)
+# BrowserStack config (100% official format)
 BS_USERNAME = "ruiruixiao_HBwtCk"
 BS_ACCESS_KEY = "6DpJ8BujqYbktEBhJSsp"
 APPIUM_REMOTE_URL = f"https://{BS_USERNAME}:{BS_ACCESS_KEY}@hub.browserstack.com/wd/hub"
@@ -17,21 +17,23 @@ LOG_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_logs")
 SCREENSHOTS_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_screenshots")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_reports")
 
-# Android desired capabilities (100% valid for BrowserStack)
+# Android desired capabilities (Appium 2.0 + BrowserStack W3C standard)
 DESIRED_CAPS = {
     "platformName": "Android",
     "automationName": "UiAutomator2",
-    "noReset": False,
-    "newCommandTimeout": 30,
-    "app": "bs://19db12aefeee97f9eed40b499feb88911af3100e",
-    "bstack:options": {
-        "userName": BS_USERNAME,
-        "accessKey": BS_ACCESS_KEY,
-        "projectName": "API_Demo",
-        "buildName": "GitHub-Actions",
-        "sessionName": "API_Demo-Test",
-        "device": "Google Pixel 3",
-        "osVersion": "9.0"
+    "appium:noReset": False,
+    "appium:newCommandTimeout": 30,
+    "appium:app": "bs://19db12aefeee97f9eed40b499feb88911af3100e",
+    "alwaysMatch": {
+        "bstack:options": {
+            "userName": BS_USERNAME,
+            "accessKey": BS_ACCESS_KEY,
+            "projectName": "API_Demo",
+            "buildName": "GitHub-Actions",
+            "sessionName": "API_Demo-Test",
+            "deviceName": "Google Pixel 3",
+            "platformVersion": "9.0"
+        }
     }
 }
 
