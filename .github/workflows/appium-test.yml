@@ -1,134 +1,133 @@
 # GitHub Actions workflow for Appium Android UI Automation Tests
-# Trigger: Manual dispatch (workflow_dispatch)
-# Environment: Ubuntu latest + Android Emulator (API 28)
-name: Appium Android UI Test CI/CD
+# Manual Android Emulator Setup (No third-party Action dependency)
+name: Appium Android Test (Manual Emulator)
 
 on:
-  workflow_dispatch:
-    inputs: {}
+  workflow_dispatch: {}
   push:
     branches: [main]
 
 jobs:
-  appium-and-test:
-    name: Run Appium Android Tests
+  appium-android-test:
+    name: Run Appium Tests with Manual Emulator
     runs-on: ubuntu-latest
     continue-on-error: false
 
     steps:
+      # Step 1: Checkout code
       - name: Checkout Repository Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Setup Python 3.9 Environment
+      # Step 2: Setup Python environment
+      - name: Setup Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
-          cache: "pip"
+          cache: "pip"  # Cache pip dependencies for faster runs
 
-      - name: Install Python Dependencies
+      # Step 3: Install core dependencies (Python + Appium + Android SDK)
+      - name: Install All Dependencies
         run: |
           set -e
-          echo "Upgrading pip and installing project dependencies..."
+          # Install Python dependencies
+          echo "=== Installing Python dependencies ==="
           python -m pip install --upgrade pip
-          pip install --no-cache-dir -r requirements.txt
-          pip install py>=1.11.0
-          echo "Python dependencies installed successfully"
+          pip install --no-cache-dir -r requirements.txt || echo "No requirements.txt found, skip"
+          pip install py>=1.11.0 pytest pytest-html
 
-      - name: Install Appium & UIAutomator2 Driver
-        run: |
-          set -e
-          echo "Installing Node.js and Appium 2.0.0..."
+          # Install Node.js + Appium 2.0 + UIAutomator2 driver
+          echo -e "\n=== Installing Appium ==="
           sudo apt-get update && sudo apt-get install -y nodejs npm
           npm install -g appium@2.0.0
-          echo "Installing UIAutomator2 driver..."
           appium driver install uiautomator2
           appium --version
           appium driver list --installed
 
-      - name: Run Tests on Android Emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 28
-          emulator-options: "-no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2 -memory 2048"
-          emulator-boot-timeout: 900
-          script: |
-            #!/bin/sh
-            set -e
-            # Define core paths (simplified for sh compatibility)
-            APK_PATH="$GITHUB_WORKSPACE/apps/ApiDemos-debug.apk"
-            APPIUM_LOG="$GITHUB_WORKSPACE/appium.log"
-            REPORT_DIR="$GITHUB_WORKSPACE/API_Demo_reports"
-            LOG_DIR="$GITHUB_WORKSPACE/API_Demo_logs"
-            SCREENSHOT_DIR="$GITHUB_WORKSPACE/API_Demo_screenshots"
+          # Install Android SDK & tools (key step to replace third-party Action)
+          echo -e "\n=== Installing Android SDK ==="
+          sudo apt-get install -y android-sdk openjdk-11-jdk
+          # Set Android environment variables
+          echo "ANDROID_HOME=/usr/lib/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/usr/lib/android-sdk" >> $GITHUB_ENV
+          echo "PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator" >> $GITHUB_ENV
 
-            # Step 1: Validate APK existence
-            echo "=== Checking Test APK Existence ==="
-            echo "Target APK path: $APK_PATH"
-            if [ ! -f "$APK_PATH" ]; then
-              echo "ERROR: APK NOT FOUND at $APK_PATH"
-              ls -la "$GITHUB_WORKSPACE/apps/"
-              exit 1
+          # Accept Android SDK licenses (auto-confirm, no interactive prompt)
+          echo -e "\n=== Accepting Android SDK licenses ==="
+          yes | sdkmanager --licenses > /dev/null 2>&1
+
+          # Install Android 28 system image (for emulator)
+          echo -e "\n=== Installing Android 28 system image ==="
+          sdkmanager "platforms;android-28" "system-images;android-28;google_apis;x86" "emulator" "platform-tools"
+
+      # Step 4: Create & Start Android Emulator
+      - name: Create and Launch Android Emulator
+        run: |
+          set -e
+          # Create AVD (Android Virtual Device)
+          echo "=== Creating Android Emulator ==="
+          avdmanager create avd -n test-emulator -k "system-images;android-28;google_apis;x86" --device "pixel" --force
+
+          # Start emulator in background (headless mode for CI)
+          echo -e "\n=== Starting Android Emulator ==="
+          emulator -avd test-emulator -no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2 -memory 2048 &
+
+          # Wait for emulator to boot (critical step: ensure emulator is ready)
+          echo -e "\n=== Waiting for Emulator Boot ==="
+          adb wait-for-device
+          # Wait for fully boot (not just device connected)
+          for i in {1..30}; do
+            if adb shell getprop sys.boot_completed | grep -q "1"; then
+              echo "Emulator fully booted after $i attempts"
+              break
             fi
-            echo "APK found successfully"
+            echo "Waiting for emulator boot ($i/30)..."
+            sleep 10
+          done
+          adb devices
+          adb shell settings put global animator_duration_scale 0  # Disable animation for faster tests
 
-            # Step 2: Start Appium Server (ps + grep instead of pgrep for sh compatibility)
-            echo -e "\n=== Starting Appium Server ==="
-            nohup appium --relaxed-security > "$APPIUM_LOG" 2>&1 &
-            APPIUM_PID=$!
-            echo "Appium server started with PID: $APPIUM_PID"
-            sleep 5
-            if ps -ef | grep -v grep | grep appium > /dev/null; then
-              echo "Appium process is active"
-            else
-              echo "ERROR: Appium failed to start"
-              cat "$APPIUM_LOG"
-              exit 1
-            fi
+      # Step 5: Start Appium & Run Tests
+      - name: Run Appium Tests
+        run: |
+          set -e
+          # Start Appium server in background
+          echo "=== Starting Appium Server ==="
+          nohup appium --relaxed-security > appium.log 2>&1 &
+          APPIUM_PID=$!
+          sleep 5  # Wait for Appium to initialize
+          echo "Appium server PID: $APPIUM_PID"
 
-            # Step 3: Wait for Emulator readiness (while loop for sh compatibility)
-            echo -e "\n=== Waiting for Emulator/Appium Ready ==="
-            echo "Sleeping 140s for emulator boot & Appium initialization..."
-            sleep 140
-            echo -e "\n=== Connected Android Devices ==="
-            adb devices
-            adb wait-for-device
-            i=1
-            while [ $i -le 5 ]; do
-              if adb shell getprop ro.build.version.release > /dev/null 2>&1; then
-                break
-              fi
-              echo "Emulator not ready, retrying ($i/5)..."
-              sleep 10
-              i=$((i+1))
-            done
-            echo "Emulator is ready"
+          # Create output directories
+          echo -e "\n=== Preparing Output Directories ==="
+          mkdir -p API_Demo_reports API_Demo_logs API_Demo_screenshots
 
-            # Step 4: Create output directories
-            echo -e "\n=== Preparing Output Directories ==="
-            mkdir -p "$REPORT_DIR" "$LOG_DIR" "$SCREENSHOT_DIR"
-            echo "Output directories created"
+          # Validate APK existence
+          echo -e "\n=== Checking APK File ==="
+          APK_PATH="$GITHUB_WORKSPACE/apps/ApiDemos-debug.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "ERROR: APK not found at $APK_PATH"
+            ls -la "$GITHUB_WORKSPACE/apps/"
+            exit 1
+          fi
+          echo "APK found successfully"
 
-            # Step 5: Execute test cases
-            echo -e "\n=== Starting Test Execution ==="
-            pytest tests/ -v -s --html="$REPORT_DIR/report.html" --self-contained-html
-            TEST_EXIT_CODE=$?
-            echo -e "\n=== Test Execution Complete ==="
-            echo "Pytest exit code: $TEST_EXIT_CODE"
+          # Execute tests
+          echo -e "\n=== Running Tests ==="
+          pytest tests/ -v -s --html=API_Demo_reports/report.html --self-contained-html
+          TEST_EXIT_CODE=$?
 
-            # Step 6: Stop Appium Server (killall instead of pkill for sh compatibility)
-            echo -e "\n=== Stopping Appium Server ==="
-            if ps -ef | grep -v grep | grep appium > /dev/null; then
-              killall appium > /dev/null 2>&1 || true
-              echo "Appium server stopped successfully"
-            else
-              echo "Appium server already stopped"
-            fi
+          # Stop Appium server
+          echo -e "\n=== Stopping Appium ==="
+          if ps -p $APPIUM_PID > /dev/null; then
+            kill $APPIUM_PID
+            echo "Appium stopped successfully"
+          fi
 
-            # Exit with test result code
-            exit $TEST_EXIT_CODE
+          exit $TEST_EXIT_CODE
 
+      # Step 6: Upload test results (run even if tests fail)
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
