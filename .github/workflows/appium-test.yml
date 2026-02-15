@@ -40,7 +40,7 @@ jobs:
           pip install py>=1.11.0
           echo "Python dependencies installed successfully"
 
-      # Step 4: Install Appium & UIAutomator2 driver (Android automation)
+      # Step 4: Install Appium and UIAutomator2 driver (Android automation)
       - name: Install Appium & UIAutomator2 Driver
         run: |
           set -e
@@ -61,55 +61,71 @@ jobs:
           # Emulator options: Headless mode (no GUI) for CI environment
           emulator-options: "-no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2 -memory 2048"
           emulator-boot-timeout: 900  # Extend timeout to 15 mins for stable boot
-          # Core test execution script (use set -e to fail fast on error)
+          # Core test execution script (ALL multi-line logic converted to single-line to avoid sh -c parsing issues)
           script: |
             set -e
-            # Pre-check: Ensure test APK exists (fail fast if missing)
-            echo "Checking if test APK exists at: ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
-            test -f "${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk" || { echo "ERROR: Test APK not found at ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"; ls -la "${GITHUB_WORKSPACE}/apps/"; exit 1; }
-            echo "APK found successfully: ${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
+            # ========== Pre-check: APK Existence (single-line logic) ==========
+            APK_FULL_PATH="${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
+            echo "=== Checking Test APK Existence ==="
+            echo "Target APK path: $APK_FULL_PATH"
+            # Single-line test with debug output
+            test -f "$APK_FULL_PATH" || { echo "ERROR: APK NOT FOUND at $APK_FULL_PATH"; ls -la "${GITHUB_WORKSPACE}/apps/"; exit 1; }
+            echo " APK found successfully"
 
-            # Start Appium server in background (relaxed security for CI)
-            echo "Starting Appium server in background..."
-            nohup appium --relaxed-security > appium.log 2>&1 &
+            # ========== Start Appium Server (background) ==========
+            echo -e "\n=== Starting Appium Server ==="
+            nohup appium --relaxed-security > "${GITHUB_WORKSPACE}/appium.log" 2>&1 &
             APPIUM_PID=$!
             echo "Appium server started with PID: $APPIUM_PID"
+            # Verify Appium process is running
+            ps -p $APPIUM_PID > /dev/null && echo " Appium process is active" || { echo "ERROR: Appium failed to start"; exit 1; }
 
-            # Wait for emulator and Appium to stabilize (consolidated sleep)
-            echo "Waiting 140 seconds for emulator/Appium to be ready..."
+            # ========== Wait for Emulator/Appium Stabilization ==========
+            echo -e "\n=== Waiting for Emulator/Appium Ready ==="
+            echo "Sleeping 140s for emulator boot & Appium initialization..."
             sleep 140
-
-            # Verify emulator is connected
-            echo "Checking connected Android devices..."
+            # Ensure emulator is connected and ready
+            echo -e "\n=== Connected Android Devices ==="
             adb devices
-            adb wait-for-device  # Ensure device is ready
+            adb wait-for-device
+            adb shell getprop ro.build.version.release > /dev/null 2>&1 || { echo "ERROR: Emulator not responsive"; exit 1; }
+            echo " Emulator is ready"
 
-            # Run pytest with HTML report (verbose mode for debugging)
-            echo "Starting Appium test execution..."
-            pytest tests/ -v -s --html="${GITHUB_WORKSPACE}/API_Demo_reports/report.html" --self-contained-html
+            # ========== Create Output Directories (ensure exist) ==========
+            echo -e "\n=== Preparing Output Directories ==="
+            mkdir -p "${GITHUB_WORKSPACE}/API_Demo_reports"
+            mkdir -p "${GITHUB_WORKSPACE}/API_Demo_logs"
+            mkdir -p "${GITHUB_WORKSPACE}/API_Demo_screenshots"
+            echo " Output directories created: API_Demo_reports/ API_Demo_logs/ API_Demo_screenshots/"
+
+            # ========== Execute Pytest Tests ==========
+            echo -e "\n=== Starting Test Execution ==="
+            pytest_cmd="pytest tests/ -v -s --html=${GITHUB_WORKSPACE}/API_Demo_reports/report.html --self-contained-html"
+            echo "Executing: $pytest_cmd"
+            $pytest_cmd
             TEST_EXIT_CODE=$?
+            echo -e "\n=== Test Execution Complete ==="
+            echo "Pytest exit code: $TEST_EXIT_CODE"
 
-            # Stop Appium server after tests
-            echo "Stopping Appium server (PID: $APPIUM_PID)..."
-            if ps -p $APPIUM_PID > /dev/null; then
-              kill $APPIUM_PID
-              echo "Appium server stopped successfully"
-            else
-              echo "Appium server already stopped"
-            fi
+            # ========== Stop Appium Server (single-line logic) ==========
+            echo -e "\n=== Stopping Appium Server ==="
+            # Single-line process check & kill
+            ps -p $APPIUM_PID > /dev/null && { kill $APPIUM_PID; echo "Appium server stopped (PID: $APPIUM_PID)"; } || echo "ℹ️ Appium server already stopped"
 
-            # Exit with test result code
+            # ========== Exit with Test Result ==========
+            echo -e "\n=== Workflow Complete ==="
             exit $TEST_EXIT_CODE
 
-      # Step 6: Upload Test Artifacts (reports/logs) - run even if tests fail
-      - name: Upload Test Results (Reports & Logs)
-        if: always()  # Execute regardless of previous step success/failure
+      # Step 6: Upload All Test Artifacts (run even if tests fail)
+      - name: Upload Test Results (Reports/Logs/Screenshots)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: appium-test-results-${{ github.run_id }}  # Unique name with run ID
+          name: appium-test-results-${{ github.run_id }}
+          # Absolute paths for reliable artifact collection
           path: |
             ${{ github.workspace }}/API_Demo_reports/**
             ${{ github.workspace }}/API_Demo_logs/**
             ${{ github.workspace }}/API_Demo_screenshots/**
             ${{ github.workspace }}/appium.log
-          retention-days: 7  # Retain artifacts for 7 days (cleanup)
+          retention-days: 7  # Clean up old artifacts automatically
