@@ -33,6 +33,7 @@ jobs:
       # Step 3: Install Python dependencies (including pytest and Appium client)
       - name: Install Python Dependencies
         run: |
+          set -e
           echo "Upgrading pip and installing project dependencies..."
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt
@@ -42,6 +43,7 @@ jobs:
       # Step 4: Install Appium and UIAutomator2 driver (Android automation)
       - name: Install Appium & UIAutomator2 Driver
         run: |
+          set -e
           echo "Installing Node.js and Appium 2.0.0..."
           sudo apt-get update && sudo apt-get install -y nodejs npm
           npm install -g appium@2.0.0
@@ -57,22 +59,24 @@ jobs:
         with:
           api-level: 28
           # Emulator options: Headless mode (no GUI) for CI environment
-          emulator-options: "-no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2"
-          emulator-boot-timeout: 600  # 10 minutes timeout for emulator boot
-          # Core test execution script
+          emulator-options: "-no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2 -memory 2048"
+          emulator-boot-timeout: 900  # Extend timeout to 15 mins for stable boot
+          # Core test execution script (use set -e to fail fast on error)
           script: |
+            set -e
             # Pre-check: Ensure test APK exists (fail fast if missing)
-            echo "Checking if test APK exists..."
-            APK_PATH="./apps/ApiDemos-debug.apk"
+            APK_PATH="${GITHUB_WORKSPACE}/apps/ApiDemos-debug.apk"
+            echo "Checking if test APK exists at: $APK_PATH"
             if [ ! -f "$APK_PATH" ]; then
               echo "ERROR: Test APK not found at $APK_PATH"
+              ls -la "${GITHUB_WORKSPACE}/apps/"  # List dir content for debugging
               exit 1
             fi
             echo "APK found successfully: $APK_PATH"
 
             # Start Appium server in background (relaxed security for CI)
             echo "Starting Appium server in background..."
-            appium --relaxed-security > appium.log 2>&1 &
+            nohup appium --relaxed-security > appium.log 2>&1 &
             APPIUM_PID=$!
             echo "Appium server started with PID: $APPIUM_PID"
 
@@ -83,15 +87,21 @@ jobs:
             # Verify emulator is connected
             echo "Checking connected Android devices..."
             adb devices
+            adb wait-for-device  # Ensure device is ready
 
             # Run pytest with HTML report (verbose mode for debugging)
             echo "Starting Appium test execution..."
-            pytest tests/ -v -s --html=API_Demo_reports/report.html --self-contained-html
+            pytest tests/ -v -s --html="${GITHUB_WORKSPACE}/API_Demo_reports/report.html" --self-contained-html
             TEST_EXIT_CODE=$?
 
             # Stop Appium server after tests
             echo "Stopping Appium server (PID: $APPIUM_PID)..."
-            kill $APPIUM_PID || echo "Appium server already stopped"
+            if ps -p $APPIUM_PID > /dev/null; then
+              kill $APPIUM_PID
+              echo "Appium server stopped successfully"
+            else
+              echo "Appium server already stopped"
+            fi
 
             # Exit with test result code
             exit $TEST_EXIT_CODE
@@ -103,8 +113,8 @@ jobs:
         with:
           name: appium-test-results-${{ github.run_id }}  # Unique name with run ID
           path: |
-            API_Demo_reports/**
-            API_Demo_logs/**
-            API_Demo_screenshots/**
-            appium.log
+            ${{ github.workspace }}/API_Demo_reports/**
+            ${{ github.workspace }}/API_Demo_logs/**
+            ${{ github.workspace }}/API_Demo_screenshots/**
+            ${{ github.workspace }}/appium.log
           retention-days: 7  # Retain artifacts for 7 days (cleanup)
