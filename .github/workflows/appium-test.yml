@@ -1,47 +1,111 @@
-name: Appium Test
-on: [workflow_dispatch]
+# GitHub Actions workflow for Appium Android UI Automation Tests
+# Trigger: Manual dispatch (workflow_dispatch)
+# Environment: Ubuntu latest + Android Emulator (API 28)
+# Core Steps: Code Checkout → Env Setup → Dep Install → Emulator Run → Test Execution → Artifact Upload
+name: Appium Android UI Test CI/CD
 
+# Trigger workflow manually (supports on-demand test execution)
+on:
+  workflow_dispatch:
+
+# Define test job with Ubuntu latest runner
 jobs:
-  test:
+  appium-android-test:
+    name: Run Appium Android Tests
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    # Ensure job continues to upload artifacts even if steps fail
+    continue-on-error: false
 
-      - name: Setup Python
+    steps:
+      # Step 1: Checkout source code from repository
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # Fetch only latest commit for speed
+
+      # Step 2: Setup Python environment (match project's Python version)
+      - name: Setup Python 3.9 Environment
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
+          cache: "pip"  # Cache pip dependencies for faster runs
 
-      - name: Install Deps
+      # Step 3: Install Python dependencies (including pytest and Appium client)
+      - name: Install Python Dependencies
         run: |
+          echo "Upgrading pip and installing project dependencies..."
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --no-cache-dir -r requirements.txt
           pip install py>=1.11.0
+          echo "Python dependencies installed successfully"
 
-      - name: Install Appium
+      # Step 4: Install Appium and UIAutomator2 driver (Android automation)
+      - name: Install Appium & UIAutomator2 Driver
         run: |
+          echo "Installing Node.js and Appium 2.0.0..."
+          sudo apt-get update && sudo apt-get install -y nodejs npm
           npm install -g appium@2.0.0
+          echo "Installing UIAutomator2 driver for Android..."
           appium driver install uiautomator2
+          # Verify Appium installation
+          appium --version
+          appium driver list --installed
 
-      - name: Run Test
+      # Step 5: Start Android Emulator and Run Appium Tests
+      - name: Run Tests on Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 28
+          # Emulator options: Headless mode (no GUI) for CI environment
           emulator-options: "-no-window -no-audio -gpu swiftshader_indirect -no-boot-anim -no-snapshot-save -cores 2"
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 600  # 10 minutes timeout for emulator boot
+          # Core test execution script
           script: |
-            if [ ! -f ./apps/ApiDemos-debug.apk ]; then exit 1; fi
-            appium --relaxed-security > appium.log 2>&1 &
-            sleep 20
-            sleep 120
-            adb devices
-            mkdir -p reports
-            pytest tests/ -v -s --html=reports/report.html --self-contained-html
+            # Pre-check: Ensure test APK exists (fail fast if missing)
+            echo "Checking if test APK exists..."
+            APK_PATH="./apps/ApiDemos-debug.apk"
+            if [ ! -f "$APK_PATH" ]; then
+              echo "ERROR: Test APK not found at $APK_PATH"
+              exit 1
+            fi
+            echo "APK found successfully: $APK_PATH"
 
-      - name: Upload Test Results
-        if: always()
+            # Start Appium server in background (relaxed security for CI)
+            echo "Starting Appium server in background..."
+            appium --relaxed-security > appium.log 2>&1 &
+            APPIUM_PID=$!
+            echo "Appium server started with PID: $APPIUM_PID"
+
+            # Wait for emulator and Appium to stabilize (consolidated sleep)
+            echo "Waiting 140 seconds for emulator/Appium to be ready..."
+            sleep 140
+
+            # Verify emulator is connected
+            echo "Checking connected Android devices..."
+            adb devices
+
+            # Create reports directory (idempotent)
+            mkdir -p reports
+
+            # Run pytest with HTML report (verbose mode for debugging)
+            echo "Starting Appium test execution..."
+            pytest tests/ -v -s --html=reports/report.html --self-contained-html
+            TEST_EXIT_CODE=$?
+
+            # Stop Appium server after tests
+            echo "Stopping Appium server (PID: $APPIUM_PID)..."
+            kill $APPIUM_PID || echo "Appium server already stopped"
+
+            # Exit with test result code
+            exit $TEST_EXIT_CODE
+
+      # Step 6: Upload Test Artifacts (reports/logs) - run even if tests fail
+      - name: Upload Test Results (Reports & Logs)
+        if: always()  # Execute regardless of previous step success/failure
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: reports/** appium.log
+          name: appium-test-results-${{ github.run_id }}  # Unique name with run ID
+          path: |
+            reports/**
+            appium.log
+          retention-days: 7  # Retain artifacts for 7 days (cleanup)
