@@ -17,18 +17,17 @@ LOG_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_logs")
 SCREENSHOTS_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_screenshots")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_reports")
 
-# Android desired capabilities (Appium 2.0 W3C + BrowserStack 100% compatible)
+# Android desired capabilities (100% matching BrowserStack's official device name)
 DESIRED_CAPS = {
-   
     "platformName": "Android",
     "automationName": "UiAutomator2",
     "appium:noReset": False,
     "appium:newCommandTimeout": 30,
     "appium:app": "bs://19db12aefeee97f9eed40b499feb88911af3100e",
-    
+   
     "appium:deviceName": "Google Pixel 3",
     "appium:platformVersion": "9.0",
-    
+   
     "alwaysMatch": {
         "bstack:options": {
             "userName": BS_USERNAME,
