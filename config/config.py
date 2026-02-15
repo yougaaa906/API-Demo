@@ -17,21 +17,22 @@ LOG_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_logs")
 SCREENSHOTS_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_screenshots")
 REPORTS_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_reports")
 
-# Android desired capabilities
+# Android desired capabilities (BrowserStack official format)
 DESIRED_CAPS = {
-    "platformName": "Android",
-    "deviceName": os.getenv("DEVICE_NAME", "Google Pixel 3"),
+    "platformName": "Android",  
     "automationName": "UiAutomator2",
     "noReset": False,
     "newCommandTimeout": 30,
-    "platformVersion": os.getenv("PLATFORM_VERSION", "9.0"),
     "app": os.getenv("APP_PATH", "bs://19db12aefeee97f9eed40b499feb88911af3100e"),
     "bstack:options": {
         "userName": BS_USERNAME,
         "accessKey": BS_ACCESS_KEY,
         "projectName": "API_Demo",
         "buildName": "GitHub-Actions",
-        "sessionName": "API_Demo-Test"
+        "sessionName": "API_Demo-Test",
+        "deviceName": os.getenv("DEVICE_NAME", "Google Pixel 3"),  
+        "platformVersion": os.getenv("PLATFORM_VERSION", "9.0"),  
+        "osVersion": "9.0"  
     }
 }
 
