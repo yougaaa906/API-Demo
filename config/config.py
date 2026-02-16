@@ -33,9 +33,10 @@ DESIRED_CAPS = {
         "projectName": "API_Demo",
         "buildName": "GitHub-Actions",
         "sessionName": "API_Demo-Test"
-        # 移除了这里的device和osVersion，这两个不是bstack:options的合法字段
+        
     }
 }
 
 # Element locator
 HOME_ELEMENT = ("xpath", "//android.widget.TextView[@text='Accessibility']")
+
