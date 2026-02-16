@@ -24,14 +24,16 @@ DESIRED_CAPS = {
     "appium:noReset": False,
     "appium:newCommandTimeout": 30,
     "appium:app": "bs://19db12aefeee97f9eed40b499feb88911af3100e",
+   
+    "appium:deviceName": "Samsung Galaxy S23 Ultra",  
+    "appium:platformVersion": "13.0",                 
     "bstack:options": {
         "userName": BS_USERNAME,
         "accessKey": BS_ACCESS_KEY,
         "projectName": "API_Demo",
         "buildName": "GitHub-Actions",
-        "sessionName": "API_Demo-Test",
-        "device": "Samsung Galaxy S23 Ultra",
-        "osVersion": "13.0"
+        "sessionName": "API_Demo-Test"
+        # 移除了这里的device和osVersion，这两个不是bstack:options的合法字段
     }
 }
 
