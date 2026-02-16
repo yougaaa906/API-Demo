@@ -37,6 +37,7 @@ def driver():
     Function-scoped Appium driver fixture for BrowserStack cloud execution.
     Initializes UiAutomator2 driver with W3C-compliant capabilities,
     implicit wait configuration, and proper teardown.
+    Critical fix: Custom element factory to resolve W3C dict -> WebElement issue
     
     Yields:
         webdriver.Remote: Initialized Appium driver instance
@@ -75,14 +76,27 @@ def driver():
         )
         appium_driver.implicitly_wait(TIMEOUT)
         
-        # ====================== ULTIMATE FIX START ======================
-        # Force driver to wrap W3C element dict into Appium WebElement
+        # ====================== BROWSERSTACK COMPATIBILITY FIX ======================
+        # Critical: Replace element factory to force WebElement encapsulation
+        # Fixes "dict has no attribute is_displayed" error
         from appium.webdriver.webelement import WebElement
-        appium_driver._wrap_element = lambda resp: WebElement(
-            appium_driver, 
-            resp["element-6066-11e4-a52e-28c025000000"]
-        )
-        # ====================== ULTIMATE FIX END ======================
+        from selenium.webdriver.remote.webelement import WebElement as SeleniumWebElement
+
+        def appium_element_factory(driver, resp):
+            """Custom element factory to handle W3C element dict from BrowserStack"""
+            # Case 1: W3C standard element dict (BrowserStack response)
+            if isinstance(resp, dict) and "element-6066-11e4-a52e-28c025000000" in resp:
+                return WebElement(driver, resp["element-6066-11e4-a52e-28c025000000"])
+            # Case 2: Legacy element ID string
+            elif isinstance(resp, str):
+                return WebElement(driver, resp)
+            # Case 3: Fallback to Selenium WebElement (compatibility)
+            else:
+                return SeleniumWebElement(driver, resp)
+
+        # Override driver's element factory (global effect)
+        appium_driver._web_element_cls = appium_element_factory
+        # =============================================================================
         
         logger.info(
             f"BrowserStack driver initialized successfully | Session ID: {appium_driver.session_id}"
