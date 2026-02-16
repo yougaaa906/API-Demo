@@ -39,13 +39,8 @@ def driver():
     appium_driver = None
     try:
         logger.info("Initializing BrowserStack driver...")
-        options = UiAutomator2Options()
-        options.set_capability("noReset", False)
-        
-        for cap_key, cap_value in DESIRED_CAPS.items():
-            if cap_key != "noReset":
-                options.set_capability(cap_key, cap_value)
-
+        # Load all capabilities at once (preserve bstack:options hierarchy)
+        options = UiAutomator2Options().load_capabilities(DESIRED_CAPS)
         appium_driver = webdriver.Remote(APPIUM_REMOTE_URL, options=options)
         appium_driver.implicitly_wait(TIMEOUT)
         logger.info("BrowserStack driver initialized successfully")
