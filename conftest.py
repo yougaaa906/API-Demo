@@ -37,7 +37,6 @@ def driver():
     Function-scoped Appium driver fixture for BrowserStack cloud execution.
     Initializes UiAutomator2 driver with W3C-compliant capabilities,
     implicit wait configuration, and proper teardown.
-    Critical fix: Decorate find_element methods to resolve W3C dict -> WebElement issue
     
     Yields:
         webdriver.Remote: Initialized Appium driver instance
@@ -60,6 +59,11 @@ def driver():
         options.set_capability("appium:deviceName", "Samsung Galaxy S23 Ultra")
         options.set_capability("appium:platformVersion", "13.0")
         
+        # ====================== 仅新增这1行关键配置 ======================
+        # 解决BrowserStack+Appium2.0的W3C元素字典封装问题（官方方案）
+        options.set_capability("appium:disableIdLocatorAutocompletion", True)
+        # =================================================================
+        
         # BrowserStack-specific capabilities (preserve nested structure for W3C compliance)
         options.set_capability("bstack:options", {
             "userName": DESIRED_CAPS["bstack:options"]["userName"],
@@ -75,42 +79,6 @@ def driver():
             options=options
         )
         appium_driver.implicitly_wait(TIMEOUT)
-        
-        # ====================== BROWSERSTACK COMPATIBILITY FIX ======================
-        # Critical: Decorate find_element methods to force WebElement encapsulation
-        # Fixes "dict has no attribute is_displayed" and "isinstance() arg 2 must be a type" errors
-        from appium.webdriver.webelement import WebElement
-        from functools import wraps
-
-        def wrap_element_response(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                # Execute original find_element/find_elements method
-                resp = func(*args, **kwargs)
-                # Get driver instance from method arguments
-                driver = args[0]
-                
-                # Case 1: Single W3C element dict (BrowserStack response)
-                if isinstance(resp, dict) and "element-6066-11e4-a52e-28c025000000" in resp:
-                    return WebElement(driver, resp["element-6066-11e4-a52e-28c025000000"])
-                # Case 2: List of W3C element dicts (find_elements response)
-                elif isinstance(resp, list):
-                    wrapped_elements = []
-                    for item in resp:
-                        if isinstance(item, dict) and "element-6066-11e4-a52e-28c025000000" in item:
-                            wrapped_elements.append(WebElement(driver, item["element-6066-11e4-a52e-28c025000000"]))
-                        else:
-                            wrapped_elements.append(item)
-                    return wrapped_elements
-                # Case 3: Already a valid WebElement (return as-is)
-                else:
-                    return resp
-            return wrapper
-
-        # Apply decorator to fix find_element/find_elements responses
-        appium_driver.find_element = wrap_element_response(appium_driver.find_element)
-        appium_driver.find_elements = wrap_element_response(appium_driver.find_elements)
-        # =============================================================================
         
         logger.info(
             f"BrowserStack driver initialized successfully | Session ID: {appium_driver.session_id}"
