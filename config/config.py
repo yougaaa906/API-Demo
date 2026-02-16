@@ -19,24 +19,21 @@ REPORTS_DIR = os.path.join(PROJECT_ROOT, f"{PROJECT_NAME}_reports")
 
 # Android desired capabilities (Appium 2.0 W3C + BrowserStack 100% compatible)
 DESIRED_CAPS = {
-    
     "platformName": "Android",
     "automationName": "UiAutomator2",
     "appium:noReset": False,
     "appium:newCommandTimeout": 30,
     "appium:app": "bs://19db12aefeee97f9eed40b499feb88911af3100e",
- 
-    "alwaysMatch": {
-        "bstack:options": {
-            "userName": BS_USERNAME,
-            "accessKey": BS_ACCESS_KEY,
-            "projectName": "API_Demo",
-            "buildName": "GitHub-Actions",
-            "sessionName": "API_Demo-Test",
-            
-            "device": "Google Pixel 3",
-            "osVersion": "9.0"
-        }
+    # Remove redundant alwaysMatch wrapper (not required by BrowserStack)
+    "bstack:options": {
+        "userName": BS_USERNAME,
+        "accessKey": BS_ACCESS_KEY,
+        "projectName": "API_Demo",
+        "buildName": "GitHub-Actions",
+        "sessionName": "API_Demo-Test",
+        # Use official field name "deviceName" instead of "device"
+        "deviceName": "Google Pixel 3",
+        "osVersion": "9.0"
     }
 }
 
