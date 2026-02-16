@@ -72,7 +72,7 @@ class BasePage:
         
         try:
             self.logger.info(f"Waiting for element visibility: {locator_str}, timeout: {timeout}s")
-            elem = WebDriverWait(self.driver, timeout).until(
+            elem = self.wait.until(
                 EC.visibility_of_element_located(locator)
             )
             self.logger.info(f"Element {locator_str} is visible")
@@ -95,7 +95,7 @@ class BasePage:
         
         try:
             self.logger.info(f"Waiting for element clickable: {locator_str}, timeout: {timeout}s")
-            elem = WebDriverWait(self.driver, timeout).until(
+            elem = self.wait.until(
                 EC.element_to_be_clickable(locator)
             )
             self.logger.info(f"Element {locator_str} is clickable")
