@@ -1,5 +1,7 @@
 from appium.webdriver import Remote
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import time
 import logging
 
@@ -9,6 +11,8 @@ logger = logging.getLogger(__name__)
 class PageActions:
     def __init__(self, driver: Remote):
         self.driver = driver
+        # Add explicit wait object (critical fix for WebElement encapsulation)
+        self.wait = WebDriverWait(self.driver, 1)  # Short timeout for element check
 
     # Swipe action (scenario-based extended operation)
     def swipe_until_element_appear(
@@ -21,12 +25,13 @@ class PageActions:
     ):
         """
         Continuously swipe screen until target element appears (core swipe function)
+        Fix: Use WebDriverWait to ensure return WebElement instead of raw dict
         :param locator: Element locator tuple, e.g., (AppiumBy.ID, "com.example.app:id/target_id")
         :param max_swipes: Maximum swipe attempts to prevent infinite loop (default: 10)
         :param swipe_direction: Swipe direction, supports up/down/left/right (default: up)
         :param swipe_duration: Swipe duration in milliseconds (default: 500ms)
         :param wait_time: Wait time after each swipe for page loading (default: 0.5s)
-        :return: Found web element object / None if element not found
+        :return: Found WebElement object / None if element not found
         """
         # Get screen resolution for device adaptation
         screen_size = self.driver.get_window_size()
@@ -36,12 +41,15 @@ class PageActions:
         swipe_count = 0
         while swipe_count < max_swipes:
             try:
-                # Check if element exists and is visible
-                element = self.driver.find_element(*locator)
-                if element.is_displayed():
-                    logger.info(f"Target element found after {swipe_count} swipes")
-                    return element
-            except NoSuchElementException:
+                # CRITICAL FIX: Use WebDriverWait to get encapsulated WebElement
+                # Replace direct find_element with explicit wait (solves dict issue)
+                element = self.wait.until(
+                    EC.visibility_of_element_located(locator)
+                )
+                logger.info(f"Target element found after {swipe_count} swipes")
+                return element
+            
+            except TimeoutException:  # Replace NoSuchElementException with TimeoutException
                 # Execute swipe if element not found
                 # Calculate swipe coordinates based on direction
                 if swipe_direction == "up":  # Swipe up (page scrolls down)
@@ -60,7 +68,7 @@ class PageActions:
                     logger.error("Invalid swipe direction, only up/down/left/right are supported")
                     return None
 
-                # Perform swipe action
+                # Perform swipe action (Appium 2.0 compatible)
                 self.driver.swipe(start_x, start_y, end_x, end_y, swipe_duration)
                 swipe_count += 1
                 logger.info(f"Swipe attempt {swipe_count}/{max_swipes} (direction: {swipe_direction})")
