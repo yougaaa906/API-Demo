@@ -66,7 +66,6 @@ def driver():
             "projectName": "API_Demo",
             "buildName": "GitHub-Actions",
             "sessionName": "API_Demo-Test",
-            "w3c": True  # Enforce W3C protocol compliance
         })
         
         # Initialize driver (Appium 2.0 recommended pattern - options parameter)
@@ -134,3 +133,4 @@ def pytest_runtest_makereport(item, call):
     test_report = outcome.get_result()
     # Track failures only in the test execution phase (ignore setup/teardown failures)
     item._test_failed = (test_report.when == 'call' and test_report.failed)
+
