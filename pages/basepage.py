@@ -1,10 +1,8 @@
-
-
 # Standard library imports
 import os
 import time
 import logging
-from typing import Tuple, Optional, Any, Union  # Type hints (critical for外企规范)
+from typing import Tuple, Optional, Any, Union 
 from datetime import datetime  # More precise timestamp
 
 # Third-party imports
@@ -16,11 +14,11 @@ from appium.webdriver.webelement import WebElement  # Appium WebElement type
 from appium.webdriver.common.appiumby import AppiumBy  # Standard locator type
 
 # Project imports
-from config.config import TIMEOUT, SCREENSHOT_DIR  # Use centralized config
+from config.config import TIMEOUT, SCREENSHOTS_DIR  # Use centralized config
 
 # Configure logger (module-level, consistent with enterprise logging standards)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)  
 
 # ====================== W3C/BrowserStack Compatibility Layer (Enterprise Grade) ======================
 class WebDriverWait(BaseWebDriverWait):
@@ -226,9 +224,11 @@ class BasePage:
         width = screen_size["width"]
         height = screen_size["height"]
         
-        for attempt in range(1, times + 1):
+        
+        for attempt in range(times):
+            current_attempt = attempt + 1
             try:
-                logger.info(f"Performing upward swipe (attempt {attempt}/{times})")
+                logger.info(f"Performing upward swipe (attempt {current_attempt}/{times})")
                 self.driver.swipe(
                     start_x=width / 2,
                     start_y=height * start_y_ratio,
@@ -239,8 +239,8 @@ class BasePage:
                 time.sleep(0.5)  # Short pause for page stabilization
                 
             except WebDriverException as e:
-                logger.warning(f"Swipe up attempt {attempt} failed: {str(e)}")
-                if attempt == times:
+                logger.warning(f"Swipe up attempt {current_attempt} failed: {str(e)}")
+                if current_attempt == times:
                     self.capture_screenshot("swipe_up_failure")
                     raise WebDriverException(f"Failed to swipe up after {times} attempts") from e
 
@@ -283,8 +283,8 @@ class BasePage:
         :return: Full path to saved screenshot
         :raises OSError: If screenshot directory cannot be created/written
         """
-        # Use centralized screenshot directory from config (best practice)
-        screenshot_dir = SCREENSHOT_DIR or os.path.join(os.path.dirname(__file__), "screenshots")
+        
+        screenshot_dir = SCREENSHOTS_DIR or os.path.join(os.path.dirname(__file__), "screenshots")
         os.makedirs(screenshot_dir, exist_ok=True)
         
         # Generate unique filename with precise timestamp (avoid collisions)
