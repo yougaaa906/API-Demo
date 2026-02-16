@@ -24,16 +24,14 @@ DESIRED_CAPS = {
     "appium:noReset": False,
     "appium:newCommandTimeout": 30,
     "appium:app": "bs://19db12aefeee97f9eed40b499feb88911af3100e",
-    # Remove redundant alwaysMatch wrapper (not required by BrowserStack)
     "bstack:options": {
         "userName": BS_USERNAME,
         "accessKey": BS_ACCESS_KEY,
         "projectName": "API_Demo",
         "buildName": "GitHub-Actions",
         "sessionName": "API_Demo-Test",
-        # Use official field name "deviceName" instead of "device"
-        "deviceName": "Google Pixel 3",
-        "osVersion": "9.0"
+        "device": "Samsung Galaxy S23 Ultra",
+        "osVersion": "13.0"
     }
 }
 
