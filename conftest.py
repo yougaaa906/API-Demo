@@ -75,6 +75,15 @@ def driver():
         )
         appium_driver.implicitly_wait(TIMEOUT)
         
+        # ====================== ULTIMATE FIX START ======================
+        # Force driver to wrap W3C element dict into Appium WebElement
+        from appium.webdriver.webelement import WebElement
+        appium_driver._wrap_element = lambda resp: WebElement(
+            appium_driver, 
+            resp["element-6066-11e4-a52e-28c025000000"]
+        )
+        # ====================== ULTIMATE FIX END ======================
+        
         logger.info(
             f"BrowserStack driver initialized successfully | Session ID: {appium_driver.session_id}"
         )
@@ -133,4 +142,3 @@ def pytest_runtest_makereport(item, call):
     test_report = outcome.get_result()
     # Track failures only in the test execution phase (ignore setup/teardown failures)
     item._test_failed = (test_report.when == 'call' and test_report.failed)
-
