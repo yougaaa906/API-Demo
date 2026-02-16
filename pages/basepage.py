@@ -2,66 +2,52 @@
 import os
 import time
 import logging
-from typing import Tuple, Optional, Any, Union 
-from datetime import datetime  # More precise timestamp
+from typing import Tuple, Optional, Any, Union
+from datetime import datetime
 
 # Third-party imports
-from selenium.webdriver.remote.webdriver import WebDriver  # Type hint for driver
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait as BaseWebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
-from appium.webdriver.webelement import WebElement  # Appium WebElement type
-from appium.webdriver.common.appiumby import AppiumBy  # Standard locator type
+from appium.webdriver.webelement import WebElement
+from appium.webdriver.common.appiumby import AppiumBy
 
 # Project imports
-from config.config import TIMEOUT, SCREENSHOTS_DIR  # Use centralized config
+from config.config import TIMEOUT, SCREENSHOTS_DIR
 
-# Configure logger (module-level, consistent with enterprise logging standards)
+# Configure logger (module-level, enterprise standard)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  
+logger.setLevel(logging.DEBUG)
 
-# ====================== W3C/BrowserStack Compatibility Layer (Enterprise Grade) ======================
+# ====================== W3C/BrowserStack Compatibility Layer ======================
 class WebDriverWait(BaseWebDriverWait):
     """
     Extended WebDriverWait with automatic dict-to-WebElement conversion
     Fixes BrowserStack's W3C-compliant element dictionary return format
     """
     def until(self, method: Any, message: str = '') -> Union[WebElement, Any]:
-        """
-        Override until() to convert element dictionaries to WebElement objects
-        :param method: Expected condition method to execute
-        :param message: Error message for timeout
-        :return: WebElement object (or original result if not element)
-        :raises TimeoutException: If condition not met within timeout
-        """
         result = super().until(method, message)
-        
-        # Convert BrowserStack's W3C element dict to Appium WebElement
         if isinstance(result, dict) and "element-6066-11e4-a52e-28c025000000" in result:
             logger.debug("Converting W3C element dict to WebElement object")
             return WebElement(self._driver, result["element-6066-11e4-a52e-28c025000000"])
-        
         return result
 
 class BasePage:
     """
     Base Page Object Model (POM) class for mobile automation
-    
     Core responsibilities:
     1. Provide reusable UI interaction methods (wait, click, input, swipe)
     2. Ensure cross-environment compatibility (local/emulator/BrowserStack)
     3. Implement consistent error handling and logging
-    4. Maintain Screenshot capture for failure debugging
+    4. Maintain screenshot capture for failure debugging
     """
-    
+    logger = logging.getLogger(__name__)
+
     def __init__(self, driver: WebDriver) -> None:
-        """
-        Initialize BasePage with Appium driver instance
-        :param driver: Appium WebDriver instance (compliant with W3C standards)
-        """
         self.driver = driver
-        self.wait = WebDriverWait(self.driver, TIMEOUT)  # Use compatible wait class
-        self._validate_driver()  # Defensive programming check
+        self.wait = WebDriverWait(self.driver, TIMEOUT)
+        self._validate_driver()
 
     def _validate_driver(self) -> None:
         """
@@ -72,241 +58,167 @@ class BasePage:
             raise ValueError("Invalid Appium driver instance - cannot initialize BasePage")
         logger.debug(f"BasePage initialized with driver session: {self.driver.session_id}")
 
-    # ------------------------------ Core Wait Methods ------------------------------
-    def wait_for_element_visibility(
-        self, 
-        locator: Tuple[str, str], 
-        timeout: Optional[int] = None
-    ) -> WebElement:
+    # ------------------------------ Original Method Names (Fully Compatible) ------------------------------
+    def wait_elem_visibility(self, locator, timeout=None):
         """
-        Wait for element to be visible (enterprise-grade wait method)
-        Replaces hard-coded sleep statements with explicit waits
-        
-        :param locator: Tuple of (By strategy, locator value), e.g., (AppiumBy.ID, "com.app:id/btn")
-        :param timeout: Custom timeout in seconds (defaults to global TIMEOUT)
-        :return: Visible WebElement object
-        :raises TimeoutException: If element not visible within timeout
+        Wait until the element is visible on the screen
+        :param locator: Element locator tuple (by, value)
+        :param timeout: Custom timeout in seconds, uses global TIMEOUT if None
+        :return: Visible web element object
+        :raise: TimeoutException if element is not visible within timeout
         """
         timeout = timeout or TIMEOUT
-        locator_str = f"{locator[0].split('.')[-1]}='{locator[1]}'"  # Human-readable locator
+        locator_str = f"{locator[0].split('.')[-1]}='{locator[1]}'"
         
         try:
-            logger.info(f"Waiting for element visibility: {locator_str} (timeout: {timeout}s)")
-            element = WebDriverWait(self.driver, timeout).until(
+            self.logger.info(f"Waiting for element visibility: {locator_str}, timeout: {timeout}s")
+            elem = WebDriverWait(self.driver, timeout).until(
                 EC.visibility_of_element_located(locator)
             )
-            logger.info(f"Element {locator_str} is visible")
-            return element
-        
+            self.logger.info(f"Element {locator_str} is visible")
+            return elem
         except TimeoutException as e:
-            error_msg = f"Element {locator_str} not visible within {timeout}s"
-            logger.error(f"{error_msg}: {str(e)}", exc_info=True)
-            self.capture_screenshot(f"visibility_timeout_{locator[1]}")
-            raise TimeoutException(error_msg) from e
+            self.logger.error(f"Element {locator_str} not visible within {timeout}s: {str(e)}", exc_info=True)
+            self.screenshot(f"visibility_timeout_{locator[1]}")
+            raise TimeoutException(f"Element not found: {locator_str}, error: {str(e)}") from e
 
-    def wait_for_element_clickable(
-        self, 
-        locator: Tuple[str, str], 
-        timeout: Optional[int] = None
-    ) -> WebElement:
+    def elem_clickable(self, locator, timeout=None):
         """
-        Wait for element to be clickable (interactable)
-        Critical for reliable UI interactions
-        
-        :param locator: Tuple of (By strategy, locator value)
-        :param timeout: Custom timeout in seconds (defaults to global TIMEOUT)
-        :return: Clickable WebElement object
-        :raises TimeoutException: If element not clickable within timeout
+        Wait until the element is clickable
+        :param locator: Element locator tuple (by, value)
+        :param timeout: Custom timeout in seconds, uses global TIMEOUT if None
+        :return: Clickable web element object
+        :raise: TimeoutException if element is not clickable within timeout
         """
         timeout = timeout or TIMEOUT
         locator_str = f"{locator[0].split('.')[-1]}='{locator[1]}'"
         
         try:
-            logger.info(f"Waiting for element clickable: {locator_str} (timeout: {timeout}s)")
-            element = WebDriverWait(self.driver, timeout).until(
+            self.logger.info(f"Waiting for element clickable: {locator_str}, timeout: {timeout}s")
+            elem = WebDriverWait(self.driver, timeout).until(
                 EC.element_to_be_clickable(locator)
             )
-            logger.info(f"Element {locator_str} is clickable")
-            return element
-        
+            self.logger.info(f"Element {locator_str} is clickable")
+            return elem
         except TimeoutException as e:
-            error_msg = f"Element {locator_str} not clickable within {timeout}s"
-            logger.error(f"{error_msg}: {str(e)}", exc_info=True)
-            self.capture_screenshot(f"clickable_timeout_{locator[1]}")
-            raise TimeoutException(error_msg) from e
+            self.logger.error(f"Element {locator_str} not clickable within {timeout}s: {str(e)}", exc_info=True)
+            self.screenshot(f"clickable_timeout_{locator[1]}")
+            raise TimeoutException(f"Element {locator_str} not clickable, error: {str(e)}") from e
 
-    # ------------------------------ Core Interaction Methods ------------------------------
-    def click_element(
-        self, 
-        locator: Tuple[str, str], 
-        timeout: Optional[int] = None
-    ) -> WebElement:
+    def elem_input(self, locator, text, timeout=None):
         """
-        Reliable element click with pre-validation (wait for clickable first)
-        
-        :param locator: Tuple of (By strategy, locator value)
-        :param timeout: Custom timeout in seconds (defaults to global TIMEOUT)
-        :return: Clicked WebElement object
-        :raises TimeoutException: If element not clickable
-        :raises WebDriverException: If click action fails
+        Wait for element visibility then input text
+        :param locator: Element locator tuple (by, value)
+        :param text: Text to be inputted into the element
+        :param timeout: Custom timeout in seconds, uses global TIMEOUT if None
+        :return: Element object after text input
+        :raise: TimeoutException if element is not visible within timeout
         """
+        timeout = timeout or TIMEOUT
         locator_str = f"{locator[0].split('.')[-1]}='{locator[1]}'"
         
         try:
-            element = self.wait_for_element_clickable(locator, timeout)
-            element.click()
-            logger.info(f"Successfully clicked element: {locator_str}")
-            return element
-        
-        except WebDriverException as e:
-            error_msg = f"Failed to click element {locator_str}"
-            logger.error(f"{error_msg}: {str(e)}", exc_info=True)
-            self.capture_screenshot(f"click_failure_{locator[1]}")
-            raise WebDriverException(error_msg) from e
+            self.logger.info(f"Inputting text '{text}' to element {locator_str}")
+            elem = self.wait_elem_visibility(locator, timeout)
+            elem.clear()
+            elem.send_keys(text)
+            self.logger.info(f"Text '{text}' inputted to element {locator_str} successfully")
+            return elem
+        except TimeoutException as e:
+            self.logger.error(f"Input element {locator_str} not found within {timeout}s: {str(e)}")
+            raise TimeoutException(f"Input element {locator_str} not found, error: {str(e)}") from e
 
-    def input_text_to_element(
-        self, 
-        locator: Tuple[str, str], 
-        text: str, 
-        timeout: Optional[int] = None, 
-        clear_first: bool = True
-    ) -> WebElement:
+    def elem_click(self, locator, timeout=None):
         """
-        Reliable text input with pre-validation and cleanup
-        
-        :param locator: Tuple of (By strategy, locator value)
-        :param text: Text to input into the element
-        :param timeout: Custom timeout in seconds (defaults to global TIMEOUT)
-        :param clear_first: Whether to clear input field before typing (default: True)
-        :return: WebElement object after text input
-        :raises TimeoutException: If element not visible
-        :raises WebDriverException: If input action fails
+        Wait for element clickable then perform click action
+        :param locator: Element locator tuple (by, value)
+        :param timeout: Custom timeout in seconds, uses global TIMEOUT if None
+        :return: Element object after click
+        :raise: TimeoutException if element is not clickable within timeout
         """
+        timeout = timeout or TIMEOUT
         locator_str = f"{locator[0].split('.')[-1]}='{locator[1]}'"
         
         try:
-            logger.info(f"Inputting text to element {locator_str}: '{text}'")
-            element = self.wait_for_element_visibility(locator, timeout)
-            
-            if clear_first:
-                element.clear()
-                logger.debug(f"Cleared text from element {locator_str}")
-            
-            element.send_keys(text)
-            logger.info(f"Successfully input text to element {locator_str}")
-            return element
-        
-        except WebDriverException as e:
-            error_msg = f"Failed to input text to element {locator_str}"
-            logger.error(f"{error_msg}: {str(e)}", exc_info=True)
-            self.capture_screenshot(f"input_failure_{locator[1]}")
-            raise WebDriverException(error_msg) from e
+            self.logger.info(f"Preparing to click element: {locator_str}")
+            elem = self.elem_clickable(locator, timeout)
+            elem.click()
+            self.logger.info(f"Element {locator_str} clicked successfully")
+            return elem
+        except TimeoutException as e:
+            self.logger.error(f"Failed to click element {locator_str}: {str(e)}")
+            raise TimeoutException(f"Failed to click element {locator_str}, error: {str(e)}") from e
 
-    # ------------------------------ Swipe/Scroll Methods ------------------------------
-    def swipe_up(
-        self, 
-        times: int = 1, 
-        duration: int = 1000, 
-        start_y_ratio: float = 0.8, 
-        end_y_ratio: float = 0.2
-    ) -> None:
+    # ------------------------------ Original Swipe Methods (Fully Compatible) ------------------------------
+    def swipe_up(self, times=1, duration=1000):
         """
-        Perform upward swipe (bottom to top) with configurable parameters
-        Deprecated: Prefer swipe_until_element_visible for element-specific scrolling
-        
+        Perform upward swipe on screen (bottom to top)
         :param times: Number of swipe iterations (default: 1)
         :param duration: Swipe duration in milliseconds (default: 1000ms)
-        :param start_y_ratio: Start Y position as ratio of screen height (default: 0.8)
-        :param end_y_ratio: End Y position as ratio of screen height (default: 0.2)
-        :raises WebDriverException: If swipe fails after all attempts
+        :raise: Exception if swipe fails after all iterations
         """
-        screen_size = self.driver.get_window_size()
-        width = screen_size["width"]
-        height = screen_size["height"]
-        
-        
         for attempt in range(times):
-            current_attempt = attempt + 1
+            screen_size = self.driver.get_window_size()
+            start_x = screen_size["width"] / 2
+            start_y = screen_size["height"] * 0.8
+            end_y = screen_size["height"] * 0.2
+            
             try:
-                logger.info(f"Performing upward swipe (attempt {current_attempt}/{times})")
-                self.driver.swipe(
-                    start_x=width / 2,
-                    start_y=height * start_y_ratio,
-                    end_x=width / 2,
-                    end_y=height * end_y_ratio,
-                    duration=duration
-                )
-                time.sleep(0.5)  # Short pause for page stabilization
-                
-            except WebDriverException as e:
-                logger.warning(f"Swipe up attempt {current_attempt} failed: {str(e)}")
-                if current_attempt == times:
-                    self.capture_screenshot("swipe_up_failure")
-                    raise WebDriverException(f"Failed to swipe up after {times} attempts") from e
+                self.driver.swipe(start_x, start_y, start_x, end_y, duration)
+                self.logger.info(f"Swipe up attempt {attempt+1}/{times} completed")
+                time.sleep(0.5)
+            except Exception as e:
+                self.logger.warning(f"Swipe up attempt {attempt+1} failed: {str(e)}")
+                if attempt == times - 1:
+                    self.screenshot()
+                    raise Exception(f"Failed to perform swipe up after {times} attempts: {str(e)}") from e
+                continue
 
-    def swipe_left(self, duration: int = 800) -> None:
+    def swipe_left(self):
         """
-        Perform left swipe (right to left) with fixed positioning
-        Deprecated: Prefer swipe_until_element_visible with direction parameter
-        
-        :param duration: Swipe duration in milliseconds (default: 800ms)
-        :raises WebDriverException: If swipe action fails
+        Perform left swipe on screen (right to left) with fixed duration (800ms)
         """
         screen_size = self.driver.get_window_size()
-        width = screen_size["width"]
-        height = screen_size["height"]
+        start_x = screen_size["width"] * 0.8
+        start_y = screen_size["height"] / 2
+        end_x = screen_size["width"] * 0.2
         
         try:
-            logger.info("Performing left swipe")
-            self.driver.swipe(
-                start_x=width * 0.8,
-                start_y=height / 2,
-                end_x=width * 0.2,
-                end_y=height / 2,
-                duration=duration
-            )
-            logger.info("Left swipe completed successfully")
-            
-        except WebDriverException as e:
-            error_msg = "Failed to perform left swipe"
-            logger.error(f"{error_msg}: {str(e)}", exc_info=True)
-            self.capture_screenshot("swipe_left_failure")
-            raise WebDriverException(error_msg) from e
+            self.driver.swipe(start_x, start_y, end_x, start_y, 800)
+            self.logger.info("Swipe left action completed successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to perform swipe left: {str(e)}")
+            self.screenshot()
+            raise
 
-    # ------------------------------ Debug/Utility Methods ------------------------------
-    def capture_screenshot(self, prefix: str = "error") -> str:
+    # ------------------------------ Original Screenshot Method (Fully Compatible) ------------------------------
+    def screenshot(self, prefix: str = "error") -> str:
         """
-        Capture and save screenshot with unique timestamp (enterprise-grade)
-        Returns screenshot path for reporting integration
-        
+        Capture and save screenshot to screenshots directory with timestamp
         :param prefix: Custom prefix for screenshot filename (default: "error")
         :return: Full path to saved screenshot
         :raises OSError: If screenshot directory cannot be created/written
         """
-        
         screenshot_dir = SCREENSHOTS_DIR or os.path.join(os.path.dirname(__file__), "screenshots")
         os.makedirs(screenshot_dir, exist_ok=True)
         
-        # Generate unique filename with precise timestamp (avoid collisions)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # Millisecond precision
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
         filename = f"{prefix}_{timestamp}.png"
         screenshot_path = os.path.abspath(os.path.join(screenshot_dir, filename))
         
         try:
             self.driver.save_screenshot(screenshot_path)
-            logger.error(f"Screenshot captured: {screenshot_path}")
+            self.logger.error(f"Error screenshot saved to: {screenshot_path}")
             return screenshot_path
-        
         except (OSError, WebDriverException) as e:
             error_msg = f"Failed to capture screenshot to {screenshot_path}"
-            logger.critical(f"{error_msg}: {str(e)}", exc_info=True)
+            self.logger.critical(f"{error_msg}: {str(e)}", exc_info=True)
             raise OSError(error_msg) from e
 
-    # ------------------------------ Cleanup Methods ------------------------------
+    # ------------------------------ Cleanup Method ------------------------------
     def teardown(self) -> None:
         """
         Cleanup method for page resources (enterprise pattern)
         Can be extended for additional cleanup (e.g., close modals)
         """
         logger.debug("BasePage teardown initiated")
-        # Add custom cleanup logic here (e.g., dismiss popups, reset app state)
