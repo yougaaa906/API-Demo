@@ -1,3 +1,20 @@
+from appium.webdriver import Remote
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import time
+import logging
+
+# Get logger instance only (configuration managed in conftest.py)
+logger = logging.getLogger(__name__)
+
+class PageActions:
+    def __init__(self, driver: Remote):
+        self.driver = driver
+        # Add explicit wait object (critical fix for WebElement encapsulation)
+        self.wait = WebDriverWait(self.driver, 1)  # Short timeout for element check
+
+    # Swipe action (scenario-based extended operation)
     def swipe_until_element_appear(
             self,
             locator,
@@ -29,7 +46,7 @@
                 element = self.wait.until(
                     EC.visibility_of_element_located(locator)
                 )
-                # =========================================================
+                # ==========================================================
                 from appium.webdriver.webelement import WebElement
                 if isinstance(element, dict) and "element-6066-11e4-a52e-28c025000000" in element:
                     element = WebElement(self.driver, element["element-6066-11e4-a52e-28c025000000"])
